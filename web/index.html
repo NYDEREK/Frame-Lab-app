@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frame Lab | 3D Printed Eyewear</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://127.0.0.1:4173/");
+      }
+      window.addEventListener("error", (event) => {
+        document.documentElement.dataset.appError = event.message || "error";
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        document.documentElement.dataset.appError = event.reason?.message || String(event.reason || "promise");
+      });
+    </script>
+    <link rel="stylesheet" href="./styles.css?v=creator-entry-20260604-07" />
+    <script type="importmap">
+      {
+        "imports": {
+          "fflate": "./assets/vendor/fflate/browser.js",
+          "polygon-clipping": "./assets/vendor/polygon-clipping/polygon-clipping.esm.js",
+          "robust-predicates": "./assets/vendor/robust-predicates/index.js",
+          "splaytree": "./assets/vendor/splaytree/splay.esm.js",
+          "three": "./assets/vendor/three/build/three.module.js",
+          "three/addons/": "./assets/vendor/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div id="loaderOverlay" class="loader-overlay" hidden>
+        <div class="loader-card">
+          <div class="loader-ring" aria-hidden="true"></div>
+          <strong id="loaderTitle">Preparing file</strong>
+          <small id="loaderText">Preparing production geometry...</small>
+          <div class="loader-bar"><span></span></div>
+        </div>
+      </div>
+
+      <div id="colorPickerPanel" class="color-picker-overlay" hidden>
+        <section class="color-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="colorPickerTitle">
+          <div class="color-picker-dialog-head">
+            <div>
+              <p class="eyebrow">Color</p>
+              <h2 id="colorPickerTitle">Choose color</h2>
+            </div>
+            <button id="closeColorPicker" type="button" class="compact ghost" aria-label="Close color picker">Close</button>
+          </div>
+          <label class="color-picker-control" for="colorPickerInput">
+            <span>Selected color</span>
+            <div class="color-picker-input-row">
+              <input id="colorPickerInput" type="color" value="#c96b34" />
+              <output id="colorPickerValue" class="color-picker-value">#C96B34</output>
+            </div>
+          </label>
+          <div class="color-picker-dialog-actions">
+            <button id="cancelColorPicker" type="button" class="ghost">Cancel</button>
+            <button id="applyColorPicker" type="button" class="accent">Apply</button>
+          </div>
+        </section>
+      </div>
+
+      <section id="accountPanel" class="account-panel auth-screen" hidden aria-label="Account">
+        <div class="account-card auth-card">
+          <div class="auth-copy">
+            <p class="eyebrow" data-i18n="accountKicker">Local account</p>
+            <h2 data-i18n="accountHeading">Frame Lab offline access</h2>
+          </div>
+          <div class="auth-form" role="form" aria-label="Login or sign up">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Secure access</p>
+                <h3 id="authTitle">Login</h3>
+              </div>
+              <button id="closeAccountPanel" type="button" class="compact ghost" data-i18n="closeAccount">Close</button>
+            </div>
+            <div class="auth-mode" role="tablist" aria-label="Account mode">
+              <button type="button" class="active" data-auth-mode="login">Login</button>
+              <button type="button" data-auth-mode="register">Create account</button>
+            </div>
+            <div id="nameFields" class="name-grid" hidden>
+              <label class="auth-field">
+                <span>First name</span>
+                <input id="accountFirstName" type="text" autocomplete="given-name" placeholder="First name" />
+              </label>
+              <label class="auth-field">
+                <span>Last name</span>
+                <input id="accountLastName" type="text" autocomplete="family-name" placeholder="Last name" />
+              </label>
+            </div>
+            <label class="auth-field">
+              <span>Email</span>
+              <input id="accountEmail" type="email" autocomplete="email" data-i18n-attr="placeholder:accountEmailPlaceholder" placeholder="you@example.com" />
+            </label>
+            <label class="auth-field password-field">
+              <span>Password</span>
+              <input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password" />
+              <button type="button" data-password-toggle="accountPassword">Show</button>
+            </label>
+            <label id="confirmPasswordField" class="auth-field password-field" hidden>
+              <span>Confirm password</span>
+              <input id="accountPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repeat password" />
+              <button type="button" data-password-toggle="accountPasswordConfirm">Show</button>
+            </label>
+            <label id="registrationCodeField" class="auth-field" hidden>
+              <span>Activation code</span>
+              <input id="accountRegistrationCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="1234-5678-9012" />
+              <small>Required once when creating this local account.</small>
+            </label>
+            <div class="account-actions">
+              <button id="signInAccount" type="button" class="accent" data-i18n="signInAccount">Login</button>
+              <button id="signOutAccount" type="button" data-i18n="signOutAccount">Sign out</button>
+            </div>
+            <p id="accountNote" class="account-note"></p>
+          </div>
+          <div id="accountProfile" class="account-profile" hidden>
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Account</p>
+                <h3>Profile</h3>
+              </div>
+              <button id="closeProfilePanel" type="button" class="compact ghost">Close</button>
+            </div>
+            <div class="profile-card">
+              <span class="profile-avatar" aria-hidden="true">FL</span>
+              <div>
+                <strong id="profileEmail">account</strong>
+                <small id="profileName">Customer</small>
+                <small id="profileRole">Customer account</small>
+              </div>
+            </div>
+            <dl class="profile-details">
+              <div>
+                <dt>Plan</dt>
+                <dd id="profilePlan">No plan</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd id="profileStatus">Active</dd>
+              </div>
+              <div>
+                <dt>Exports</dt>
+                <dd id="profileExports">Ready</dd>
+              </div>
+            </dl>
+            <section class="fit-profile-card" aria-label="Fit profile">
+              <div class="section-head compact-head">
+                <div>
+                  <p class="eyebrow">Fit</p>
+                  <h3>Your measurements</h3>
+                </div>
+              </div>
+              <div class="fit-input-grid">
+                <label class="auth-field">
+                  <span>Face width</span>
+                  <input id="accountHeadWidth" type="number" min="90" max="220" inputmode="decimal" placeholder="145" />
+                </label>
+                <label class="auth-field">
+                  <span>Bridge</span>
+                  <input id="accountBridgeWidth" type="number" min="8" max="34" inputmode="decimal" placeholder="18" />
+                </label>
+                <label class="auth-field">
+                  <span>Temple</span>
+                  <input id="accountTempleLength" type="number" min="100" max="190" inputmode="decimal" placeholder="100" />
+                </label>
+              </div>
+              <div class="fit-actions">
+                <button id="saveFitProfile" type="button" class="accent">Save fit</button>
+                <p id="fitRecommendation" class="account-note"></p>
+              </div>
+            </section>
+            <section class="license-activate" aria-label="Activation code">
+              <div class="section-head compact-head">
+                <div>
+                  <p class="eyebrow">License</p>
+                  <h3>Activation code</h3>
+                </div>
+              </div>
+              <div class="license-redeem-row">
+                <input id="licenseCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="1234-5678-9012" />
+                <button id="redeemLicenseCode" type="button" class="accent">Activate</button>
+              </div>
+              <p id="licenseCodeNote" class="account-note"></p>
+            </section>
+            <section class="download-folder" aria-label="Downloaded configurations">
+              <div class="section-head compact-head">
+                <div>
+                  <p class="eyebrow">Downloads</p>
+                  <h3>Production folder</h3>
+                </div>
+              </div>
+              <div id="downloadFolder" class="download-folder-list"></div>
+            </section>
+            <div class="account-actions">
+              <button id="profileOpenPlans" type="button" class="accent">Manage plan</button>
+              <button id="cancelSubscription" type="button">Cancel subscription</button>
+              <button id="profileSignOut" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="plansPanel" class="account-panel plans-screen" hidden aria-label="Plans">
+        <div class="account-card plans-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Plans</p>
+              <h2>Choose your access</h2>
+              <p id="plansContext" class="account-note"></p>
+            </div>
+            <button id="closePlansPanel" type="button" class="compact ghost">Close</button>
+          </div>
+          <div id="pricingGrid" class="pricing-grid"></div>
+          <div class="plans-purchase-note">
+            Enter the reusable activation code received with your purchase. Validation happens only on this computer.
+          </div>
+          <section class="plan-code-activation" aria-label="Activate plan code">
+            <div>
+              <p class="eyebrow">Activate</p>
+              <h3>Enter code to activate your plan</h3>
+            </div>
+            <div class="license-redeem-row">
+              <input id="planLicenseCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="1234-5678-9012" />
+              <button id="redeemPlanLicenseCode" type="button" class="accent">Activate</button>
+            </div>
+            <p id="planLicenseCodeNote" class="account-note"></p>
+          </section>
+        </div>
+      </section>
+
+      <section id="cropPanel" class="account-panel crop-screen" hidden aria-label="Crop image">
+        <div class="account-card crop-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Image</p>
+              <h2>Crop thumbnail</h2>
+            </div>
+            <button id="cancelCrop" type="button" class="compact ghost">Cancel</button>
+          </div>
+          <div class="crop-layout">
+            <div class="crop-stage">
+              <canvas id="cropCanvas" width="640" height="420"></canvas>
+            </div>
+            <div class="crop-controls">
+              <label class="auth-field">
+                <span>Zoom</span>
+                <input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" />
+              </label>
+              <label class="auth-field">
+                <span>Horizontal</span>
+                <input id="cropX" type="range" min="-100" max="100" step="1" value="0" />
+              </label>
+              <label class="auth-field">
+                <span>Vertical</span>
+                <input id="cropY" type="range" min="-100" max="100" step="1" value="0" />
+              </label>
+              <button id="applyCrop" type="button" class="accent">Use cropped image</button>
+              <p id="cropNote" class="account-note">The crop is used as the gallery card image.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="brandHome" class="brand brand-button" type="button" aria-label="Frame Lab home">
+            <div>
+              <p class="eyebrow" data-i18n="brandKicker"></p>
+              <h1>Frame Lab</h1>
+            </div>
+          </button>
+          <nav class="topbar-tabs" aria-label="Navigation" data-i18n-attr="aria-label:navLabel">
+            <a id="openHome" class="nav-link active" href="#top" data-i18n="tabHome">Start</a>
+            <a id="openGallery" class="nav-link" href="#galleryPanel" data-i18n="tabGallery">Collections</a>
+            <a id="plansButton" class="nav-link" href="#plansPublicPanel">Plans</a>
+            <a id="openPrintGuide" class="nav-link" href="#printGuidePanel">Print</a>
+            <a id="openRoadmap" class="nav-link" href="#roadmapPanel">Roadmap</a>
+            <a id="openLicenseInfo" class="nav-link" href="#licenseInfoPanel">License</a>
+            <a id="openFaq" class="nav-link" href="#faqPanel">FAQ</a>
+            <a id="openStudio" class="nav-link nav-admin" href="#developerPanel" data-i18n="tabStudio" hidden>Developer</a>
+            <a id="openLicenses" class="nav-link nav-admin" href="#licensePanel" hidden>Codes</a>
+          </nav>
+        </div>
+        <div class="topbar-controls">
+          <button id="accountButton" type="button" class="account-button">Login</button>
+          <button id="openConfigurator" type="button" class="hidden-utility" hidden>Editor</button>
+        </div>
+      </header>
+
+      <main id="homePage" class="home-page">
+        <span id="top" class="anchor-target"></span>
+        <section class="hero-page">
+          <figure class="hero-product" aria-hidden="true">
+            <img id="heroImage" src="./assets/frame-lab-hero.png" alt="" />
+          </figure>
+          <div class="hero-copy">
+            <h2 id="heroTitle" data-i18n="heroTitle">Your next frame is 3D printed.</h2>
+            <p id="heroText" data-i18n="heroText">Choose a collection, combine a front with temples, and prepare a clean production kit for additive manufacturing.</p>
+            <div class="hero-actions">
+              <button id="heroEditor" type="button" class="accent hero-creator-button" data-i18n="heroEditor">Open Creator</button>
+              <button id="heroBrowse" type="button" class="ghost" data-i18n="heroBrowse">View collections</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="galleryPanel" class="gallery-panel" aria-label="Model gallery">
+          <div class="gallery-head">
+            <div>
+              <p class="eyebrow" data-i18n="libraryKicker">Collections</p>
+              <h2 data-i18n="galleryHeading">Choose a frame base</h2>
+            </div>
+            <button id="startDesignLab" type="button" class="ghost">Create your own</button>
+          </div>
+          <section class="collection-section">
+            <div class="collection-head">
+              <h3 data-i18n="sunHeading">Sunglasses</h3>
+            </div>
+            <div id="sunGalleryGrid" class="gallery-grid gallery-grid-loading" aria-busy="true" aria-label="Loading sunglasses collections">
+              <div class="gallery-loading-status" role="status">
+                <span class="gallery-loading-spinner" aria-hidden="true"></span>
+                <span>Loading collections</span>
+              </div>
+              <article class="gallery-card gallery-skeleton" aria-hidden="true">
+                <div class="gallery-thumb"><span class="gallery-skeleton-preview"></span></div>
+                <div class="gallery-body">
+                  <span class="gallery-skeleton-line gallery-skeleton-title"></span>
+                  <span class="gallery-skeleton-line gallery-skeleton-copy"></span>
+                  <span class="gallery-skeleton-action"></span>
+                </div>
+              </article>
+              <article class="gallery-card gallery-skeleton" aria-hidden="true">
+                <div class="gallery-thumb"><span class="gallery-skeleton-preview"></span></div>
+                <div class="gallery-body">
+                  <span class="gallery-skeleton-line gallery-skeleton-title"></span>
+                  <span class="gallery-skeleton-line gallery-skeleton-copy"></span>
+                  <span class="gallery-skeleton-action"></span>
+                </div>
+              </article>
+              <article class="gallery-card gallery-skeleton" aria-hidden="true">
+                <div class="gallery-thumb"><span class="gallery-skeleton-preview"></span></div>
+                <div class="gallery-body">
+                  <span class="gallery-skeleton-line gallery-skeleton-title"></span>
+                  <span class="gallery-skeleton-line gallery-skeleton-copy"></span>
+                  <span class="gallery-skeleton-action"></span>
+                </div>
+              </article>
+              <article class="gallery-card gallery-skeleton" aria-hidden="true">
+                <div class="gallery-thumb"><span class="gallery-skeleton-preview"></span></div>
+                <div class="gallery-body">
+                  <span class="gallery-skeleton-line gallery-skeleton-title"></span>
+                  <span class="gallery-skeleton-line gallery-skeleton-copy"></span>
+                  <span class="gallery-skeleton-action"></span>
+                </div>
+              </article>
+            </div>
+          </section>
+        </section>
+        <section id="plansPublicPanel" class="content-section public-plans-panel" aria-label="Plans">
+          <div class="content-section-copy">
+            <p class="eyebrow">Creator access</p>
+            <h2>Plans</h2>
+            <p>Choose a Creator access tier, then use the reusable activation code received with your purchase.</p>
+          </div>
+          <div class="pricing-carousel" aria-label="Creator plan offers">
+            <button id="plansCarouselPrevious" class="pricing-carousel-control previous" type="button" aria-label="Previous plans">‹</button>
+            <div id="publicPricingGrid" class="pricing-grid pricing-carousel-track" tabindex="0"></div>
+            <button id="plansCarouselNext" class="pricing-carousel-control next" type="button" aria-label="Next plans">›</button>
+          </div>
+          <div class="plans-purchase-note">
+            Activation is local and works without an internet connection.
+          </div>
+          <section class="plan-code-activation" aria-label="Activate plan code">
+            <div>
+              <p class="eyebrow">Activate</p>
+              <h3>Enter code to activate your plan</h3>
+            </div>
+            <div class="license-redeem-row">
+              <input id="publicPlanLicenseCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="1234-5678-9012" />
+              <button id="redeemPublicPlanLicenseCode" type="button" class="accent">Activate</button>
+            </div>
+            <p id="publicPlanLicenseCodeNote" class="account-note"></p>
+          </section>
+        </section>
+        <section id="printGuidePanel" class="content-section print-guide-panel">
+          <div class="content-section-copy">
+            <p class="eyebrow">Production</p>
+            <h2 id="printGuideHeading">How to print it</h2>
+            <p id="printGuideIntro"></p>
+          </div>
+          <figure id="printGuideFigure" class="print-guide-figure" hidden>
+            <button id="openPrintGuideImage" class="print-guide-image-button" type="button" aria-label="Enlarge print preview">
+              <img id="printGuideImage" alt="Honeycomb lens slicer preview" />
+            </button>
+          </figure>
+        </section>
+        <section id="roadmapPanel" class="content-section roadmap-panel">
+          <div class="content-section-copy">
+            <p class="eyebrow">Next</p>
+            <h2 id="roadmapHeading">Roadmap</h2>
+          </div>
+          <div id="roadmapItems" class="roadmap-grid"></div>
+        </section>
+        <section id="licenseInfoPanel" class="content-section license-info-panel">
+          <div class="content-section-copy">
+            <p class="eyebrow">Access</p>
+            <h2 id="licenseInfoHeading">License</h2>
+            <p id="licenseInfoBody"></p>
+          </div>
+        </section>
+        <section id="faqPanel" class="content-section faq-panel">
+          <div class="content-section-copy">
+            <p class="eyebrow">Support</p>
+            <h2 id="faqHeading">FAQ</h2>
+          </div>
+          <div id="faqItems" class="faq-list"></div>
+        </section>
+      </main>
+
+      <div id="imageLightbox" class="image-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged print preview" hidden>
+        <button id="closeImageLightbox" class="lightbox-close" type="button" aria-label="Close enlarged image">Close</button>
+        <img id="lightboxImage" alt="Honeycomb lens slicer preview enlarged" />
+      </div>
+
+      <main id="workspace" class="workspace" hidden>
+        <section class="viewer-panel" aria-label="Podglad modelu 3D">
+            <h2 id="modelName" class="hidden-utility" hidden>Frame 001</h2>
+          <canvas id="scene"></canvas>
+          <span id="metricWidth" class="hidden-utility" hidden>150</span>
+          <span id="metricBridge" class="hidden-utility" hidden>18</span>
+          <span id="metricTemple" class="hidden-utility" hidden>100</span>
+          <span id="meshStatus" class="hidden-utility" hidden>Preview</span>
+        </section>
+
+        <aside class="config-panel" aria-label="Parametry OpenSCAD">
+          <section class="panel-section">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow" data-i18n="builderKicker">Kreator</p>
+                <h3 data-i18n="builderHeading">Components</h3>
+              </div>
+            </div>
+            <div id="builderControls" class="builder-controls"></div>
+          </section>
+          <button id="printGuideButton" type="button" class="guide-link-button">How to print it</button>
+
+          <div id="controls" class="hidden-utility" hidden></div>
+          <button id="resetParams" class="hidden-utility" type="button" hidden>Reset</button>
+
+          <section class="panel-section">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow" data-i18n="productionKicker">Produkcja</p>
+                <h3 data-i18n="productionHeading">Export</h3>
+              </div>
+              <span id="polyCount" class="status hidden-utility" hidden>0 tris</span>
+            </div>
+            <div class="action-grid">
+              <button id="generate3mf" type="button" class="accent" data-i18n="generate3mf">3MF</button>
+              <button id="generateStl" class="hidden-utility" hidden type="button" data-i18n="generateStl">STL</button>
+              <button id="downloadAssembly" class="hidden-utility" hidden type="button" data-i18n="downloadAssembly">Download kit</button>
+              <button id="saveCurrentModel" class="hidden-utility" hidden type="button" data-i18n="saveModel">Save model</button>
+              <button id="exportScad" class="hidden-utility" hidden type="button" data-i18n="exportScad">.scad</button>
+              <button id="exportJson" class="hidden-utility" hidden type="button" data-i18n="exportJson">JSON</button>
+              <button id="copyScad" class="hidden-utility" hidden type="button" data-i18n="copyScad">Copy</button>
+            </div>
+            <pre id="importLog" class="import-log" data-i18n="readyLog">Ready.</pre>
+          </section>
+
+          <pre id="scadPreview" class="scad-preview hidden-utility" hidden></pre>
+          <button id="saveEndpoint" class="hidden-utility" type="button" hidden>Zapisz</button>
+        </aside>
+      </main>
+
+      <main id="designLab" class="design-lab" hidden>
+        <section class="design-stage" aria-label="Parametric frame authoring view">
+          <canvas id="designScene" class="design-view-hidden"></canvas>
+          <canvas id="designSketchCanvas" aria-label="Technical sketch editor"></canvas>
+          <div class="design-stage-header">
+            <div>
+              <p class="eyebrow">Parametric collection authoring</p>
+              <h2>Creator</h2>
+            </div>
+          </div>
+          <div class="design-view-switch" role="group" aria-label="Design view">
+            <button id="designViewSketch" type="button" class="active">Drawing</button>
+            <button id="designView3d" type="button">Assembly 3D</button>
+          </div>
+          <div id="designStageTools" class="design-stage-tools" role="toolbar" aria-label="Creator tools">
+            <div class="design-toolbar-group" role="group" aria-label="History">
+              <button id="designUndo" type="button" disabled>Undo</button>
+              <button id="designRedo" type="button" disabled>Redo</button>
+            </div>
+            <div class="design-toolbar-group" role="group" aria-label="Measurement">
+              <button id="designMeasureToggle" type="button">Measure</button>
+              <button id="designMeasureClear" type="button" disabled>Clear</button>
+            </div>
+            <div id="designFrontPointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Front point tools">
+              <button id="addSketchPoint" type="button">+ Point</button>
+              <button id="removeSketchPoint" type="button">Remove</button>
+              <button id="designSharpCorner" type="button">Sharp</button>
+              <label>
+                <span id="designSelectedCornerLabel">Point 1 radius</span>
+                <input id="designSelectedCornerRadius" type="range" min="0" max="30" step="0.5" value="0" />
+                <small>0 mm</small>
+              </label>
+            </div>
+            <div id="designTemplePointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Temple point tools" hidden>
+              <button id="addTemplePoint" type="button">+ Point</button>
+              <button id="removeTemplePoint" type="button">Remove</button>
+              <button id="designTempleSharpCorner" type="button">Sharp</button>
+              <label>
+                <span id="designTempleSelectedCornerLabel">Point 1 radius</span>
+                <input id="designTempleSelectedCornerRadius" type="range" min="0" max="12" step="0.1" value="0" />
+                <small>0 mm</small>
+              </label>
+            </div>
+          </div>
+          <div class="design-stage-footer">
+            <span id="designDimensions">150 mm frame / 18 mm bridge / 100 mm temple</span>
+            <span id="designMeasureReadout">Measure off</span>
+            <span id="designViewHint">Drag profile points to define the front opening</span>
+          </div>
+        </section>
+        <aside class="design-sidebar" aria-label="Parametric collection authoring">
+          <header class="design-sidebar-head">
+            <p class="eyebrow">New collection template</p>
+            <h2>Production frame creator</h2>
+            <input id="designName" type="text" value="My custom frame" maxlength="120" aria-label="Project name" />
+            <textarea id="designDescription" rows="2" maxlength="260" placeholder="Short gallery description" aria-label="Gallery description"></textarea>
+          </header>
+          <div class="design-tabs" role="tablist" aria-label="Design mode">
+            <button type="button" class="active" data-design-tab="front" role="tab" aria-selected="true">Front</button>
+            <button type="button" data-design-tab="left-temple" role="tab" aria-selected="false">Left temple</button>
+            <button type="button" data-design-tab="right-temple" role="tab" aria-selected="false">Right temple</button>
+            <button type="button" data-design-tab="assembly" role="tab" aria-selected="false">Assembly</button>
+          </div>
+          <section id="designAppearancePanel" class="design-control-section design-details design-global-appearance">
+            <h3>Appearance</h3>
+            <div class="design-colors">
+              <label><span>Front</span><input id="designFrameColor" type="color" value="#ff741f" /></label>
+              <label><span>Temples</span><input id="designTempleColor" type="color" value="#ff741f" /></label>
+              <label><span>Lens</span><input id="designLensColor" type="color" value="#202529" /></label>
+              <label><span>Detail</span><input id="designDetailColor" type="color" value="#e59a62" /></label>
+            </div>
+            <div class="design-opacity-controls">
+              <label><span>Front opacity</span><input id="designFrameOpacity" type="range" min="15" max="100" step="1" value="100" /><small>100%</small></label>
+              <label><span>Temple opacity</span><input id="designTempleOpacity" type="range" min="15" max="100" step="1" value="100" /><small>100%</small></label>
+              <label><span>Lens opacity</span><input id="designLensOpacity" type="range" min="15" max="100" step="1" value="62" /><small>62%</small></label>
+            </div>
+          </section>
+          <section class="design-control-section design-warning-section">
+            <h3>Fit warnings</h3>
+            <div id="designWarnings" class="design-warning-list"></div>
+          </section>
+          <section id="designOperationsPanel" class="design-operations" role="tabpanel">
+            <section class="design-control-section">
+              <h3>Front dimensions</h3>
+              <div id="designFrontControls" class="design-controls"></div>
+              <div class="design-controls design-primary-operations">
+                <div class="design-control">
+                  <label for="designExtrudeDepth">Extrude depth</label>
+                  <input id="designExtrudeDepth" type="range" min="3" max="12" step="0.1" value="3" aria-label="Extrude depth" />
+                  <output id="designExtrudeDepthOutput">3 mm</output>
+                </div>
+                <div class="design-control">
+                  <label for="designChamferAmount">Chamfer</label>
+                  <input id="designChamferAmount" type="range" min="0" max="2.4" step="0.1" value="0" aria-label="Chamfer amount" />
+                  <output id="designChamferAmountOutput">0 mm</output>
+                </div>
+                <div class="design-control">
+                  <label for="designFilletRadius">Edge radius</label>
+                  <input id="designFilletRadius" type="range" min="0" max="2.4" step="0.1" value="0.3" aria-label="Fillet radius" />
+                  <output id="designFilletRadiusOutput">0.3 mm</output>
+                </div>
+              </div>
+              <input id="designLensRecessEnabled" type="checkbox" checked hidden />
+              <input id="designLensRecessDepth" type="number" value="0.75" hidden />
+            </section>
+            <section class="design-control-section">
+              <h3>Lens channel</h3>
+              <div class="design-interface-metrics">
+                <div><strong>1.00 mm</strong><small>Acrylic lens</small></div>
+                <div><strong id="designLensSlotMetric">1.20 mm</strong><small>Internal slot</small></div>
+                <div><strong id="designLensCaptureMetric">0.75 mm</strong><small>Edge capture</small></div>
+              </div>
+              <div class="design-construction-grid">
+                <label><span>Slot width</span><input id="designLensSlotWidth" type="number" min="1" max="2" step="0.05" value="1.2" /><small>mm</small></label>
+                <label><span>Edge capture</span><input id="designLensCaptureDepth" type="number" min="0.15" max="1.2" step="0.05" value="0.75" /><small>mm</small></label>
+                <label><span>Fit clearance</span><input id="designLensClearance" type="number" min="0" max="0.6" step="0.01" value="0.12" /><small>mm</small></label>
+                <label><span>Channel offset</span><input id="designLensChannelOffset" type="number" min="-1" max="1" step="0.05" value="0" /><small>mm</small></label>
+              </div>
+            </section>
+            <section class="design-control-section">
+              <h3>Interface placement</h3>
+              <div class="design-construction-grid">
+                <label><span>Hinge height</span><input id="designHingeMountHeight" type="number" min="-12" max="12" step="0.5" value="10" /><small>mm</small></label>
+                <label><span>Side inset</span><input id="designHingeMountOffset" type="number" min="-4" max="0" step="0.5" value="0" /><small>mm</small></label>
+                <label><span>Bridge thickness</span><input id="designBridgeThickness" type="number" min="3" max="12" step="0.1" value="6" /><small>mm</small></label>
+                <label><span>Bridge blend</span><input id="designBridgeBlendRadius" type="range" min="0" max="8" step="0.05" value="3.45" /><small>3.45 mm</small></label>
+              </div>
+            </section>
+            <section class="design-control-section">
+              <h3>Nose wings</h3>
+              <div class="design-construction-grid">
+                <label><span>Height</span><input id="designNoseWingHeight" type="range" min="0" max="6" step="0.1" value="2.4" /><small>2.4 mm</small></label>
+                <label><span>Angle</span><input id="designNoseWingAngle" type="range" min="-28" max="28" step="1" value="8" /><small>8 deg</small></label>
+              </div>
+            </section>
+            <section class="design-control-section">
+              <h3>Dodatki</h3>
+              <div class="design-addon-card">
+                <label class="design-addon-toggle">
+                  <input id="designTopVisorEnabled" type="checkbox" />
+                  <span>
+                    <strong>Top shield</strong>
+                    <small>Mirrored lens top shield</small>
+                  </span>
+                </label>
+                <div class="design-construction-grid">
+                  <label><span>Projection</span><input id="designTopVisorDepth" type="range" min="0" max="6" step="0.1" value="3" /><small>3 mm</small></label>
+                  <label><span>Band height</span><input id="designTopVisorBandHeight" type="range" min="2" max="12" step="0.1" value="4.8" /><small>4.8 mm</small></label>
+                  <label><span>Edge round</span><input id="designTopVisorRadius" type="range" min="0" max="2.5" step="0.05" value="0.55" /><small>0.55 mm</small></label>
+                </div>
+              </div>
+            </section>
+          </section>
+          <section id="designFeaturesPanel" class="design-operations" role="tabpanel" hidden>
+            <section class="design-control-section">
+              <h3>Temple dimensions</h3>
+              <div id="designTempleControls" class="design-controls"></div>
+              <div class="design-construction-grid">
+                <label><span>Straight</span><input id="designTempleStraight" type="range" min="35" max="120" step="1" value="70" /><small>70 mm</small></label>
+                <label><span>Hook</span><input id="designTempleHook" type="range" min="10" max="60" step="1" value="30" /><small>30 mm</small></label>
+                <label><span>Angle</span><input id="designTempleHookAngle" type="range" min="10" max="75" step="1" value="45" /><small>45 deg</small></label>
+                <label><span>Height</span><input id="designTempleBarHeight" type="range" min="3" max="10" step="0.1" value="5.4" /><small>5.4 mm</small></label>
+                <label><span>Depth</span><input id="designTempleDepth" type="range" min="2.4" max="6" step="0.1" value="3.6" /><small>3.6 mm</small></label>
+                <label class="design-slider-toggle">
+                  <span><input id="designTempleChamferEnabled" type="checkbox" /> Chamfer</span>
+                  <input id="designTempleChamferAmount" type="range" min="0" max="1.2" step="0.05" value="0.35" aria-label="Temple chamfer amount" />
+                  <small>0.35 mm</small>
+                </label>
+              </div>
+            </section>
+            <section class="design-control-section design-details design-temple-text-section">
+              <h3>Temple text</h3>
+              <div id="designTempleTextControls" class="design-detail-fields">
+                <label class="design-text-field">
+                  <span>Left temple text</span>
+                  <input id="designTempleText" type="text" maxlength="24" placeholder="Frame Lab" />
+                </label>
+                <div class="design-construction-grid">
+                  <label><span>Text size</span><input id="designTempleTextSize" type="range" min="2" max="8" step="0.1" value="4" /><small>4 mm</small></label>
+                  <label><span>Position</span><input id="designTempleTextPosition" type="range" min="0" max="120" step="1" value="36" /><small>36 mm</small></label>
+                  <label><span>Relief depth</span><input id="designTempleTextDepth" type="range" min="0.15" max="1.2" step="0.05" value="0.45" /><small>0.45 mm</small></label>
+                </div>
+              </div>
+            </section>
+            <section class="design-control-section design-details">
+              <h3>Surface detail</h3>
+              <label>
+                <span>Detail mode</span>
+                <select id="designTempleDetailMode" class="component-select">
+                  <option value="none">Clean surface</option>
+                  <option value="text">Raised text</option>
+                  <option value="texture">Relief texture</option>
+                </select>
+              </label>
+              <input id="designTempleCornerRadius" type="hidden" value="1.4" />
+              <div id="designTempleTextureControls" class="design-detail-fields" hidden>
+                <label>
+                  <span>Pattern</span>
+                  <select id="designTemplePattern" class="component-select">
+                    <option value="ribs">Ribs</option>
+                    <option value="micro-ribs">Micro ribs</option>
+                    <option value="slots">Side slots</option>
+                    <option value="dots">Raised dots</option>
+                    <option value="diamond">Diamond cross</option>
+                    <option value="wave">Alternating wave</option>
+                  </select>
+                </label>
+                <div class="design-construction-grid">
+                  <label><span>Relief depth</span><input id="designTempleTextureDepth" type="range" min="0.15" max="1.2" step="0.05" value="0.45" /><small>0.45 mm</small></label>
+                  <label><span>Start</span><input id="designTemplePatternStart" type="range" min="0" max="110" step="1" value="14" /><small>14 mm</small></label>
+                  <label><span>End</span><input id="designTemplePatternEnd" type="range" min="8" max="120" step="1" value="76" /><small>76 mm</small></label>
+                  <label><span>Spacing</span><input id="designTemplePatternSpacing" type="range" min="4" max="28" step="1" value="9" /><small>9 mm</small></label>
+                  <label><span>Detail size</span><input id="designTemplePatternSize" type="range" min="0.5" max="8" step="0.1" value="4.2" /><small>4.2 mm</small></label>
+                </div>
+              </div>
+            </section>
+          </section>
+          <section id="designRightTemplePanel" class="design-operations" role="tabpanel" hidden>
+            <section class="design-control-section design-details">
+              <h3>Right temple text</h3>
+              <div id="designRightTempleTextControls" class="design-detail-fields">
+                <label class="design-text-field">
+                  <span>Right temple text</span>
+                  <input id="designRightTempleText" type="text" maxlength="24" placeholder="Frame Lab" />
+                </label>
+                <p class="design-note">Uses the same size and placement as the left temple.</p>
+              </div>
+            </section>
+            <section class="design-control-section">
+              <h3>Mirrored geometry</h3>
+              <div class="design-interface-spec">
+                <strong>Temple Hinge Right</strong>
+                <span>Mirrored fit from left side</span>
+                <small>Geometry inherits the validated left temple path</small>
+              </div>
+            </section>
+          </section>
+          <section id="designAssemblyPanel" class="design-operations" role="tabpanel" hidden>
+            <section class="design-control-section">
+              <h3>Assembly checks</h3>
+              <div class="design-assembly-checks">
+                <span>Front hinges</span><strong>Included</strong>
+                <span>Temple hinges</span><strong>Included</strong>
+                <span>Acrylic lenses</span><strong>Generated</strong>
+                <span>Lens channel</span><strong id="designLensChannelSummary">1.20 mm slot / 0.75 mm grip / 0.12 mm clearance</strong>
+              </div>
+              <div id="designProductionChecks" class="design-production-checks"></div>
+            </section>
+            <section class="design-control-section">
+              <h3>Customer sliders</h3>
+              <div id="designPublicParameters" class="design-public-parameters"></div>
+            </section>
+          </section>
+          <section id="designCodePanel" class="design-code-panel hidden-utility" aria-hidden="true" hidden>
+            <textarea id="designScadCode" spellcheck="false" aria-label="OpenSCAD source code"></textarea>
+            <div class="design-code-actions">
+              <button id="regenerateDesignCode" type="button">Regenerate</button>
+              <button id="applyDesignCode" type="button" class="accent">Apply code</button>
+            </div>
+            <p class="design-note">The generated OpenSCAD contains the drawn profile, exposed dimensions and modeling operations.</p>
+          </section>
+          <footer class="design-submit">
+            <p id="designStatus" class="design-note"></p>
+            <div id="designSubmissionStatus" class="design-submission-status"></div>
+            <div class="design-submit-groups">
+              <section class="design-action-section design-export-section" aria-label="3MF export">
+                <header>
+                  <span>Export</span>
+                  <strong>3MF production files</strong>
+                </header>
+                <div class="design-submit-actions">
+                  <button id="resetDesign" type="button">Reset</button>
+                  <button id="exportDesign3mf" type="button" class="accent">3MF parts export</button>
+                  <button id="downloadDesignScad" type="button">Project .zip</button>
+                </div>
+              </section>
+              <section id="designPublishingPanel" class="design-action-section design-publishing-section" aria-label="Publishing">
+                <header>
+                  <span>Publishing</span>
+                  <strong>Collection review</strong>
+                  <em id="designPublishingComingSoon" hidden>Coming soon</em>
+                </header>
+                <p>Share creator-made frames with the public Collections gallery after review.</p>
+                <div class="design-submit-actions">
+                  <button id="saveDesignCollection" type="button" class="accent" hidden>Save collection</button>
+                  <button id="submitDesign" type="button" class="accent">Submit for review</button>
+                </div>
+              </section>
+            </div>
+          </footer>
+        </aside>
+      </main>
+
+      <section id="developerPanel" class="studio-panel developer-panel" hidden>
+        <div class="studio-head">
+          <div>
+            <p class="eyebrow" data-i18n="studioKicker">Developer</p>
+            <h2 data-i18n="studioHeading">Collection manager</h2>
+          </div>
+        </div>
+        <section class="studio-card developer-manager-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Collections</p>
+              <h3>Frame posts</h3>
+            </div>
+            <button id="newDeveloperCollection" type="button" class="compact ghost">New collection</button>
+          </div>
+          <div id="developerCollectionList" class="developer-collection-list"></div>
+          <input id="developerCollectionPhotoInput" class="hidden-utility" hidden type="file" accept="image/*" />
+        </section>
+        <section class="studio-card submission-manager-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Submissions</p>
+              <h3>Creator review</h3>
+            </div>
+          </div>
+          <div id="designSubmissionList" class="design-submission-list">
+            <p class="account-note">No pending designs.</p>
+          </div>
+        </section>
+        <section class="studio-card brand-settings-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Brand</p>
+              <h3>Visual settings</h3>
+            </div>
+          </div>
+          <div class="brand-settings-grid">
+            <label class="accent-picker">
+              <span>Accent color</span>
+              <input id="brandAccentColor" type="color" value="#c96b34" />
+            </label>
+            <label class="accent-picker">
+              <span>Background</span>
+              <input id="brandBackgroundColor" type="color" value="#0c0d0d" />
+            </label>
+            <label class="accent-picker">
+              <span>Surface</span>
+              <input id="brandSurfaceColor" type="color" value="#141616" />
+            </label>
+            <label class="accent-picker">
+              <span>Text</span>
+              <input id="brandTextColor" type="color" value="#f1eee9" />
+            </label>
+            <label class="accent-picker">
+              <span>Secondary text</span>
+              <input id="brandMutedColor" type="color" value="#9a9690" />
+            </label>
+            <label class="accent-picker">
+              <span>Border</span>
+              <input id="brandBorderColor" type="color" value="#292c2c" />
+            </label>
+            <label class="accent-picker">
+              <span>3D scene</span>
+              <input id="brandSceneColor" type="color" value="#070909" />
+            </label>
+            <input id="brandAccentText" type="text" value="#c96b34" aria-label="Accent color hex" />
+            <button id="saveBrandSettings" type="button" class="accent">Save brand</button>
+            <button id="resetBrandSettings" type="button">Reset</button>
+          </div>
+          <div class="hero-settings-grid">
+            <input id="heroTitleInput" type="text" data-i18n-attr="placeholder:heroTitlePlaceholder" placeholder="Hero title" />
+            <input id="heroTextInput" type="text" data-i18n-attr="placeholder:heroTextPlaceholder" placeholder="Hero text" />
+            <label class="file-button" for="heroImageInput">
+              <input id="heroImageInput" type="file" accept="image/*" />
+              <span data-i18n="heroImageFile">Hero image</span>
+            </label>
+            <button id="resetHeroImage" type="button">Default hero image</button>
+          </div>
+          <p id="brandSettingsNote" class="account-note"></p>
+          <p id="storageStatusNote" class="account-note"></p>
+          <div class="storage-debug-actions">
+            <button id="refreshStorageDebug" type="button" class="ghost">Refresh storage check</button>
+          </div>
+          <pre id="storageDebugPanel" class="storage-debug-panel" hidden></pre>
+        </section>
+        <section class="studio-card content-settings-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Content</p>
+              <h3>Plans and public sections</h3>
+            </div>
+          </div>
+          <div id="planContentEditor" class="plan-content-editor"></div>
+          <label class="settings-toggle publishing-toggle">
+            <input id="publishingEnabledToggle" type="checkbox" />
+            <span>
+              <strong>Enable public publishing</strong>
+              <small>Unlock Submit for review for non-developer accounts after the supporter goal.</small>
+            </span>
+          </label>
+          <div id="pageContentEditor" class="page-content-editor"></div>
+        </section>
+      </section>
+
+      <section id="collectionEditorPanel" class="studio-panel collection-editor-panel" hidden>
+        <div class="studio-head">
+          <div>
+            <p class="eyebrow" data-i18n="frameEditorKicker">Frame editor</p>
+            <h2 id="collectionEditorHeading" data-i18n="frameEditorHeading">Frame workspace</h2>
+            <p id="studioModeLabel" class="studio-mode-label">New collection</p>
+          </div>
+          <div class="studio-head-actions">
+            <button id="backToDeveloper" type="button" class="ghost" data-i18n="backToDeveloper">Back to Developer</button>
+            <button id="clearStudioEdit" type="button" class="ghost">New collection</button>
+          </div>
+        </div>
+        <section class="studio-card frame-editor-media-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Frame page</p>
+              <h3>Photo and component options</h3>
+            </div>
+          </div>
+          <div class="frame-editor-media-grid">
+            <figure class="frame-editor-photo">
+              <img id="frameEditorPhoto" alt="" />
+              <figcaption id="frameEditorPhotoCaption">Current frame photo</figcaption>
+            </figure>
+            <div id="frameEditorComponentGallery" class="frame-component-gallery"></div>
+          </div>
+        </section>
+        <section class="studio-card">
+          <div class="studio-grid">
+            <input id="collectionTitle" type="text" data-i18n-attr="placeholder:collectionTitlePlaceholder" placeholder="Collection title" />
+            <select id="collectionCategory" class="component-select">
+              <option value="sun" data-i18n="sunCategory">Sunglasses</option>
+            </select>
+            <select id="collectionAccess" class="component-select">
+              <option value="basic">Creator access</option>
+            </select>
+            <input id="collectionDescription" type="text" data-i18n-attr="placeholder:collectionDescriptionPlaceholder" placeholder="Short description" />
+            <label class="file-button" for="collectionImageInput">
+              <input id="collectionImageInput" type="file" accept="image/*" />
+              <span data-i18n="chooseImage">Photo</span>
+            </label>
+            <label class="file-button hidden-utility" hidden for="galleryScadInput">
+              <input id="galleryScadInput" type="file" accept=".scad,.txt" />
+              <span data-i18n="addScad">Plik .scad</span>
+            </label>
+            <label class="file-button" for="collectionFrontInput">
+              <input id="collectionFrontInput" type="file" accept=".3mf,.step,.stp" multiple />
+              <span data-i18n="frontModelFile">Front variants</span>
+            </label>
+            <label class="file-button" for="collectionLeftTempleInput">
+              <input id="collectionLeftTempleInput" type="file" accept=".3mf,.step,.stp" multiple />
+              <span data-i18n="leftTempleModelFile">Left temples</span>
+            </label>
+            <label class="file-button" for="collectionRightTempleInput">
+              <input id="collectionRightTempleInput" type="file" accept=".3mf,.step,.stp" multiple />
+              <span data-i18n="rightTempleModelFile">Right temples</span>
+            </label>
+            <label class="file-button" for="collectionLensInput">
+              <input id="collectionLensInput" type="file" accept=".3mf,.step,.stp" multiple />
+              <span data-i18n="lensModelFile">Lens models</span>
+            </label>
+            <button id="addCollection" type="button" class="accent" data-i18n="addCollection">Add to gallery</button>
+          </div>
+        </section>
+
+        <section class="component-import-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow" data-i18n="componentImportKicker">Komponenty</p>
+              <h3 data-i18n="componentImportHeading">Add option to selected collection</h3>
+            </div>
+          </div>
+          <div class="component-import-grid">
+            <input id="componentName" type="text" data-i18n-attr="placeholder:componentNamePlaceholder" placeholder="Component name" />
+            <select id="componentKind" class="component-select">
+              <option value="front" data-i18n="frontComponent">Front</option>
+              <option value="temple" data-i18n="templeComponent">Temple</option>
+              <option value="lens" data-i18n="lensComponent">Lens</option>
+            </select>
+            <select id="componentTempleSide" class="component-select" aria-label="Temple side">
+              <option value="universal" data-i18n="universalSide">Universal</option>
+              <option value="left" data-i18n="leftSide">Left</option>
+              <option value="right" data-i18n="rightSide">Right</option>
+            </select>
+            <select id="componentSize" class="component-select">
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+            </select>
+            <input id="componentConnector" type="text" value="FL-H8" data-i18n-attr="placeholder:connectorPlaceholder" placeholder="Connector" />
+            <label class="file-button" for="componentFileInput">
+              <input id="componentFileInput" type="file" accept=".3mf,.step,.stp" />
+              <span data-i18n="chooseCadFile">Choose 3MF / STEP</span>
+            </label>
+            <button id="addComponentFile" type="button" class="accent" data-i18n="addComponentFile">Add component</button>
+          </div>
+          <div id="componentFileList" class="component-file-list"></div>
+        </section>
+      </section>
+
+      <section id="licensePanel" class="license-panel" hidden>
+        <div class="studio-head">
+          <div>
+            <p class="eyebrow">Developer</p>
+            <h2>License codes</h2>
+          </div>
+        </div>
+        <section class="studio-card license-admin-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Reusable table</p>
+              <h3>Static plan codes</h3>
+            </div>
+          </div>
+          <p class="account-note">These shared codes are fixed in the backend and never become redeemed. Use them for trusted testers or early access groups.</p>
+          <div id="staticLicenseCodeList" class="license-code-list static-license-code-list"></div>
+        </section>
+        <section class="studio-card license-admin-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Generator</p>
+              <h3>One-use activation codes</h3>
+            </div>
+          </div>
+          <div class="license-admin-grid">
+            <select id="licenseCodeType" class="component-select">
+              <option value="personal_year">Personal Year</option>
+              <option value="commercial_year">Commercial Year</option>
+              <option value="personal_lifetime">Lifetime Personal</option>
+              <option value="commercial_lifetime">Lifetime Commercial</option>
+              <option value="supporter">Supporter</option>
+              <option value="ultra_support">Ultra Support / lifetime commercial</option>
+            </select>
+            <input id="licenseCodeQuantity" type="number" min="1" max="50" value="1" />
+            <button id="generateLicenseCodes" type="button" class="accent">Generate codes</button>
+          </div>
+          <p id="licenseAdminNote" class="account-note"></p>
+          <div id="licenseCodeList" class="license-code-list"></div>
+        </section>
+      </section>
+    </div>
+
+    <script>
+      window.frameLabBoot = {
+        ready: false,
+        editorRequested: false,
+        designLabRequested: false,
+        resetDesignDraftRequested: false,
+        pendingCollectionId: ""
+      };
+      window.frameLabPublicBoot = {
+        settings: null,
+        collections: null,
+        ready: false
+      };
+      const showBootLoader = (title, text) => {
+        const overlay = document.querySelector("#loaderOverlay");
+        document.querySelector("#loaderTitle").textContent = title;
+        document.querySelector("#loaderText").textContent = text;
+        overlay.hidden = false;
+      };
+      const queueDesignLabDuringBoot = (event, shouldReset) => {
+        if (window.frameLabBoot.ready) return;
+        event?.preventDefault();
+        window.frameLabBoot.editorRequested = false;
+        window.frameLabBoot.designLabRequested = true;
+        window.frameLabBoot.resetDesignDraftRequested ||= shouldReset;
+        if (window.location.hash !== "#design-lab") {
+          window.history.pushState({ frameLabRoute: "#design-lab" }, "", "#design-lab");
+        }
+        showBootLoader("Loading Creator", "Preparing drawing tools and 3D previews...");
+      };
+      const escapePublicHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+      }[char]));
+      const renderPublicHeroPreview = (settings = {}) => {
+        const heroTitle = document.querySelector("#heroTitle");
+        const heroText = document.querySelector("#heroText");
+        const heroImage = document.querySelector("#heroImage");
+        if (heroTitle && settings.heroTitle) heroTitle.textContent = settings.heroTitle;
+        if (heroText && settings.heroText) heroText.textContent = settings.heroText;
+        if (heroImage && typeof settings.heroImage === "string" && settings.heroImage) {
+          heroImage.src = settings.heroImage;
+        }
+      };
+      const renderPublicGalleryPreview = (collections = []) => {
+        const grid = document.querySelector("#sunGalleryGrid");
+        if (!grid || !collections.length) return;
+        const visible = collections
+          .filter((model) => model && (model.category || "sun") !== "optical")
+          .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || (Number(a.createdAt || 0) - Number(b.createdAt || 0)));
+        if (!visible.length) return;
+        grid.classList.remove("gallery-grid-loading");
+        grid.removeAttribute("aria-busy");
+        grid.removeAttribute("aria-label");
+        grid.innerHTML = visible.map((model, index) => {
+          const name = String(model.name || "Frame Lab model");
+          const description = String(model.description || "").trim();
+          const thumbnail = typeof model.thumbnail === "string" && model.thumbnail
+            ? `<img src="${model.thumbnail}" alt="Miniatura modelu ${escapePublicHtml(name)}" />`
+            : `<span class="gallery-placeholder gallery-placeholder-${(index % 5) + 1}" aria-hidden="true"></span>`;
+          return `
+            <article class="gallery-card" data-model-id="${escapePublicHtml(model.id || "")}">
+              <div class="gallery-thumb">${thumbnail}</div>
+              <div class="gallery-body">
+                <div class="gallery-title-row">
+                  <div>
+                    <h3>${escapePublicHtml(name)}</h3>
+                    ${description ? `<div class="gallery-meta">${escapePublicHtml(description)}</div>` : ""}
+                  </div>
+                </div>
+                <div class="gallery-actions">
+                  <button type="button" class="accent" data-action="open">Configure</button>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      };
+      const hydratePublicHomePreview = async () => {
+        const [settingsResult, collectionsResult] = await Promise.allSettled([
+          fetch("./api/public-settings", { cache: "no-store" }).then((response) => response.ok ? response.json() : null),
+          fetch("./api/collections", { cache: "no-store" }).then((response) => response.ok ? response.json() : null)
+        ]);
+        const settings = settingsResult.status === "fulfilled" ? settingsResult.value?.settings : null;
+        const collections = collectionsResult.status === "fulfilled" && Array.isArray(collectionsResult.value?.collections)
+          ? collectionsResult.value.collections
+          : [];
+        if (settings) {
+          window.frameLabPublicBoot.settings = settings;
+          renderPublicHeroPreview(settings);
+        }
+        if (collections.length) {
+          window.frameLabPublicBoot.collections = collections;
+          renderPublicGalleryPreview(collections);
+        }
+        window.frameLabPublicBoot.ready = true;
+      };
+      document.querySelector("#sunGalleryGrid")?.addEventListener("click", (event) => {
+        if (window.frameLabBoot.ready) return;
+        const button = event.target.closest("button[data-action='open']");
+        const card = button?.closest(".gallery-card[data-model-id]");
+        if (!button || !card) return;
+        event.preventDefault();
+        window.frameLabBoot.pendingCollectionId = card.dataset.modelId || "";
+        showBootLoader("Loading collection", "Preparing Creator controls for this frame...");
+      });
+      document.querySelector("#heroEditor")?.addEventListener("click", (event) => queueDesignLabDuringBoot(event, true));
+      document.querySelector("#startDesignLab")?.addEventListener("click", (event) => queueDesignLabDuringBoot(event, true));
+      hydratePublicHomePreview().catch(() => {
+        window.frameLabPublicBoot.ready = true;
+      });
+    </script>
+    <script type="module" src="./src/app.js?v=creator-entry-20260604-08"></script>
+  </body>
+</html>

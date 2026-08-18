@@ -1,0 +1,95 @@
+{
+  "name": "frame-lab-desktop",
+  "version": "0.2.0",
+  "description": "Frame Lab desktop application for macOS and Windows",
+  "author": "NYDEREK",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.mjs",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "test": "pnpm run test:server && pnpm run test:desktop",
+    "test:server": "node scripts/smoke-server.mjs",
+    "test:desktop": "electron . --smoke-test",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac dmg zip --universal",
+    "dist:mac:arm64": "electron-builder --mac dmg zip --arm64",
+    "dist:mac:x64": "electron-builder --mac dmg zip --x64",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "pl.com.framelab.desktop",
+    "productName": "Frame Lab",
+    "copyright": "Copyright © 2026 NYDEREK",
+    "asar": true,
+    "artifactName": "Frame-Lab-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "build/icon.png",
+      "web/**/*",
+      "seed/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "title": "Frame Lab ${version}",
+      "backgroundColor": "#0c0d0d",
+      "iconSize": 112,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 145,
+          "y": 190,
+          "type": "file"
+        },
+        {
+          "x": 395,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Frame Lab",
+      "uninstallDisplayName": "Frame Lab"
+    }
+  }
+}
