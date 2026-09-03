@@ -28,75 +28,80 @@ try {
   const started = await startFrameLabServer({ listenPort: 0, listenHost: "127.0.0.1" });
   server = started.server;
 
-  const [pageResponse, settingsResponse, collectionsResponse] = await Promise.all([
+  const [pageResponse, settingsResponse, collectionsResponse, desktopStateResponse] = await Promise.all([
     fetch(`${started.origin}/`),
     fetch(`${started.origin}/api/public-settings`),
-    fetch(`${started.origin}/api/collections`)
+    fetch(`${started.origin}/api/collections`),
+    fetch(`${started.origin}/api/desktop/state`)
   ]);
 
   assert.equal(pageResponse.status, 200);
   const pageHtml = await pageResponse.text();
-  assert.match(pageHtml, /Frame Lab \| 3D Printed Eyewear/);
-  assert.match(pageHtml, /id="accountRegistrationCode"/);
+  assert.match(pageHtml, /<title>Frame Lab<\/title>/);
+  assert.match(pageHtml, /id="desktopActivation"/);
+  assert.match(pageHtml, /id="desktopDashboard"/);
+  assert.match(pageHtml, /id="desktopSaveProject"/);
+  assert.doesNotMatch(pageHtml, /Fit warnings|id="designWarnings"/i);
+  assert.doesNotMatch(pageHtml, /design-stage-footer|Internal lens channel|id="designDimensions"|id="designViewHint"|id="designMeasureReadout"/i);
   assert.doesNotMatch(pageHtml, /googleLogin|Continue with Google/i);
   assert.equal(settingsResponse.status, 200);
   assert.equal(collectionsResponse.status, 200);
+  assert.equal(desktopStateResponse.status, 200);
 
   const settings = await settingsResponse.json();
   const collections = await collectionsResponse.json();
   assert.ok(settings.settings);
   assert.ok(Array.isArray(collections.collections));
   assert.ok(collections.collections.length > 0, "The desktop seed should include at least one collection.");
+  const initialDesktopState = await desktopStateResponse.json();
+  assert.equal(initialDesktopState.license, null);
+  assert.deepEqual(initialDesktopState.projects, []);
 
-  const registrationWithoutCode = await postJson(started.origin, "/api/auth/email", {
-    mode: "register",
-    email: "missing-code@example.test",
-    password: "local-pass",
-    firstName: "Missing",
-    lastName: "Code"
-  });
-  assert.equal(registrationWithoutCode.response.status, 400);
+  const invalidActivation = await postJson(started.origin, "/api/desktop/activate", { code: "0000-0000-0000" });
+  assert.equal(invalidActivation.response.status, 404);
 
-  const registration = await postJson(started.origin, "/api/auth/email", {
-    mode: "register",
-    email: "year@example.test",
-    password: "local-pass",
-    firstName: "Year",
-    lastName: "Account",
-    code: "3184-1815-3029"
-  });
-  assert.equal(registration.response.status, 200);
-  assert.equal(registration.payload.user.plan, "basic");
-  assert.equal(registration.payload.user.subscriptionMode, "license_year");
-  assert.equal(registration.payload.user.subscriptionStatus, "paid_once");
-  const accessDays = (new Date(registration.payload.user.planEndsAt) - new Date()) / 86_400_000;
+  const activation = await postJson(started.origin, "/api/desktop/activate", { code: "3184-1815-3029" });
+  assert.equal(activation.response.status, 200);
+  assert.equal(activation.payload.license.plan, "basic");
+  assert.equal(activation.payload.license.status, "active");
+  const accessDays = (new Date(activation.payload.license.expiresAt) - new Date()) / 86_400_000;
   assert.ok(accessDays > 364 && accessDays < 367, "A yearly code should grant approximately one year of access.");
 
-  const reusedStaticCode = await postJson(started.origin, "/api/auth/email", {
-    mode: "register",
-    email: "reused@example.test",
-    password: "local-pass",
-    firstName: "Reused",
-    lastName: "Code",
-    code: "3184-1815-3029"
+  const reusedStaticCode = await postJson(started.origin, "/api/desktop/activate", { code: "3184-1815-3029" });
+  assert.equal(reusedStaticCode.response.status, 409);
+
+  const createdProject = await postJson(started.origin, "/api/desktop/projects", {
+    project: {
+      name: "Smoke frame",
+      description: "Local smoke project",
+      draft: { name: "Smoke frame", params: { head_width: 148 }, style: { frameColor: "#c96b34" } }
+    }
   });
-  assert.equal(reusedStaticCode.response.status, 200);
-  assert.equal(reusedStaticCode.payload.user.plan, "basic");
+  assert.equal(createdProject.response.status, 201);
+  assert.equal(createdProject.payload.project.name, "Smoke frame");
+  const projectId = createdProject.payload.project.id;
+
+  const projectResponse = await fetch(`${started.origin}/api/desktop/projects/${projectId}`);
+  assert.equal(projectResponse.status, 200);
+  const storedProject = await projectResponse.json();
+  assert.equal(storedProject.project.draft.params.head_width, 148);
+
+  const projectsResponse = await fetch(`${started.origin}/api/desktop/projects`);
+  assert.equal(projectsResponse.status, 200);
+  const projects = await projectsResponse.json();
+  assert.equal(projects.projects.length, 1);
 
   const databasePath = join(dataDirectory, "frame-lab-db.json");
   const database = JSON.parse(readFileSync(databasePath, "utf8"));
-  const expiringUser = database.users.find((user) => user.email === "year@example.test");
-  expiringUser.planEndsAt = "2020-01-01T00:00:00.000Z";
+  database.desktop.license.expiresAt = "2020-01-01T00:00:00.000Z";
   writeFileSync(databasePath, JSON.stringify(database, null, 2));
 
-  const loginAfterExpiry = await postJson(started.origin, "/api/auth/email", {
-    mode: "login",
-    email: "year@example.test",
-    password: "local-pass"
-  });
-  assert.equal(loginAfterExpiry.response.status, 200);
-  assert.equal(loginAfterExpiry.payload.user.plan, "free");
-  assert.equal(loginAfterExpiry.payload.user.subscriptionStatus, "expired");
+  const expiredStateResponse = await fetch(`${started.origin}/api/desktop/state`);
+  const expiredState = await expiredStateResponse.json();
+  assert.equal(expiredState.license.status, "expired");
+
+  const projectAfterExpiry = await fetch(`${started.origin}/api/desktop/projects/${projectId}`);
+  assert.equal(projectAfterExpiry.status, 403);
 
   const oauthResponse = await fetch(`${started.origin}/api/auth/oauth/google`);
   assert.equal(oauthResponse.status, 404);

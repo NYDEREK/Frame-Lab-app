@@ -1,6 +1,11 @@
 {
   "users": [],
   "sessions": [],
+  "desktop": {
+    "license": null,
+    "activationHistory": [],
+    "projects": []
+  },
   "collections": [
     {
       "id": "frame001-sun-01",
@@ -55,7 +60,13 @@
   "downloads": [],
   "licenseCodes": [],
   "settings": {
-    "accentColor": "#c96b34",
+    "accentColor": "#ff922f",
+    "backgroundColor": "#202121",
+    "surfaceColor": "#151515",
+    "textColor": "#f2dfc1",
+    "mutedColor": "#a09d97",
+    "borderColor": "#313434",
+    "sceneColor": "#4d4d4d",
     "heroTitle": "Your next frame is 3D printed.",
     "heroText": "Choose a collection, combine a front with temples, and prepare a clean production kit for additive manufacturing.",
     "heroImage": ""

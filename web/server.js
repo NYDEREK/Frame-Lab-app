@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { extname, isAbsolute, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { constants as zlibConstants, createBrotliCompress, createGzip } from "node:zlib";
+import { createLocalDatabase } from "./local-database.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const railwayDataPath = "/data";
@@ -167,13 +168,13 @@ const defaultContentSettings = {
 };
 
 const defaultBrandSettings = {
-  accentColor: "#c96b34",
-  backgroundColor: "#0c0d0d",
-  surfaceColor: "#141616",
-  textColor: "#f1eee9",
-  mutedColor: "#9a9690",
-  borderColor: "#292c2c",
-  sceneColor: "#070909",
+  accentColor: "#ff922f",
+  backgroundColor: "#202121",
+  surfaceColor: "#151515",
+  textColor: "#f2dfc1",
+  mutedColor: "#a09d97",
+  borderColor: "#313434",
+  sceneColor: "#4d4d4d",
   heroTitle: "Your next frame is 3D printed.",
   heroText: "Choose a collection, combine a front with temples, and prepare a clean production kit for additive manufacturing.",
   heroImage: "",
@@ -211,8 +212,130 @@ const staticLicenseCodes = [
   { id: "static-ultra-support", code: "9364-1558-2706", type: "ultra_support", label: "Ultra Support reusable code" }
 ];
 
+const maxDesktopProjects = 500;
+const maxDesktopProjectBytes = 2_500_000;
+const maxDesktopThumbnailBytes = 1_500_000;
+
+function defaultDesktopState() {
+  return { license: null, activationHistory: [], projects: [] };
+}
+
 function defaultDb() {
-  return { users: [], sessions: [], collections: [], components: [], downloads: [], licenseCodes: [], designSubmissions: [], settings: { ...defaultBrandSettings } };
+  return {
+    users: [],
+    sessions: [],
+    collections: [],
+    components: [],
+    downloads: [],
+    licenseCodes: [],
+    designSubmissions: [],
+    desktop: defaultDesktopState(),
+    settings: { ...defaultBrandSettings }
+  };
+}
+
+function desktopCodeHash(code) {
+  return createHash("sha256").update(normalizeLicenseCode(code)).digest("hex");
+}
+
+function sanitizeDesktopLicense(license) {
+  if (!license || typeof license !== "object") return null;
+  const details = licenseCodeTypes[license.type];
+  if (!details || details.plan === "free") return null;
+  const activatedAt = new Date(license.activatedAt || Date.now());
+  const expiresAt = license.expiresAt ? new Date(license.expiresAt) : null;
+  const lifetime = details.duration === "lifetime";
+  const expired = !lifetime && (!expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date());
+  return {
+    type: license.type,
+    label: details.label,
+    plan: details.plan,
+    status: lifetime ? "lifetime" : expired ? "expired" : "active",
+    codeHash: String(license.codeHash || "").slice(0, 128),
+    activatedAt: Number.isNaN(activatedAt.getTime()) ? new Date().toISOString() : activatedAt.toISOString(),
+    expiresAt: lifetime || !expiresAt || Number.isNaN(expiresAt.getTime()) ? null : expiresAt.toISOString()
+  };
+}
+
+function publicDesktopLicense(license) {
+  const sanitized = sanitizeDesktopLicense(license);
+  if (!sanitized) return null;
+  const { codeHash: _codeHash, ...publicLicense } = sanitized;
+  return publicLicense;
+}
+
+function sanitizeDesktopProjectDraft(draft) {
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) return {};
+  try {
+    const encoded = JSON.stringify(draft);
+    if (Buffer.byteLength(encoded) > maxDesktopProjectBytes) return {};
+    return JSON.parse(encoded);
+  } catch {
+    return {};
+  }
+}
+
+function sanitizeDesktopProject(project, previous = null) {
+  if (!project || typeof project !== "object") return null;
+  const now = new Date().toISOString();
+  const thumbnail = typeof project.thumbnail === "string"
+    && project.thumbnail.startsWith("data:image/")
+    && Buffer.byteLength(project.thumbnail) <= maxDesktopThumbnailBytes
+    ? project.thumbnail
+    : previous?.thumbnail || "";
+  return {
+    id: String(previous?.id || project.id || randomBytes(12).toString("hex")).slice(0, 120),
+    name: cleanText(project.name, previous?.name || "Untitled frame", 120),
+    description: cleanText(project.description, previous?.description || "", 260),
+    draft: sanitizeDesktopProjectDraft(project.draft),
+    thumbnail,
+    createdAt: previous?.createdAt || now,
+    updatedAt: project.updatedAt || previous?.updatedAt || now,
+    lastExportedAt: project.lastExportedAt || previous?.lastExportedAt || null,
+    exportCount: Math.max(0, Math.floor(Number(project.exportCount ?? previous?.exportCount) || 0))
+  };
+}
+
+function sanitizeDesktopState(desktop) {
+  const source = desktop && typeof desktop === "object" ? desktop : {};
+  const seenHistory = new Set();
+  const activationHistory = (Array.isArray(source.activationHistory) ? source.activationHistory : [])
+    .map((entry) => ({
+      codeHash: String(entry?.codeHash || "").slice(0, 128),
+      type: licenseCodeTypes[entry?.type] ? entry.type : "",
+      activatedAt: String(entry?.activatedAt || "").slice(0, 64)
+    }))
+    .filter((entry) => entry.codeHash && entry.type && !seenHistory.has(entry.codeHash) && seenHistory.add(entry.codeHash))
+    .slice(-100);
+  const projects = (Array.isArray(source.projects) ? source.projects : [])
+    .map((project) => sanitizeDesktopProject(project, project))
+    .filter(Boolean);
+  return {
+    license: sanitizeDesktopLicense(source.license),
+    activationHistory,
+    projects
+  };
+}
+
+function desktopLicenseHasAccess(license) {
+  const sanitized = sanitizeDesktopLicense(license);
+  return Boolean(sanitized && sanitized.status !== "expired" && planRank[sanitized.plan] > planRank.free);
+}
+
+function publicDesktopProject(project, options = {}) {
+  if (!project) return null;
+  const summary = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    thumbnail: project.thumbnail,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    lastExportedAt: project.lastExportedAt,
+    exportCount: project.exportCount
+  };
+  if (options.includeDraft) summary.draft = project.draft;
+  return summary;
 }
 
 function sanitizeHexColor(value, fallback) {
@@ -440,25 +563,27 @@ function storageDebug(db) {
   };
 }
 
-function readDb() {
-  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
-  if (!existsSync(dbPath)) writeFileSync(dbPath, JSON.stringify(defaultDb(), null, 2));
-  try {
-    const parsed = JSON.parse(readFileSync(dbPath, "utf8"));
-    const db = { ...defaultDb(), ...parsed, settings: sanitizeSettings(parsed.settings) };
+const localDatabase = createLocalDatabase({
+  directory: dataDir,
+  createDefault: defaultDb,
+  normalize(parsed) {
+    const db = {
+      ...defaultDb(),
+      ...parsed,
+      desktop: sanitizeDesktopState(parsed.desktop),
+      settings: sanitizeSettings(parsed.settings)
+    };
     db.users = Array.isArray(db.users) ? db.users.map((user) => refreshExpiredAccess(user)) : [];
     return db;
-  } catch {
-    return defaultDb();
   }
+});
+
+function readDb() {
+  return localDatabase.read();
 }
 
-function writeDb(db) {
-  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
-  const safeDb = { ...defaultDb(), ...db, settings: sanitizeSettings(db.settings) };
-  const tmpPath = `${dbPath}.${process.pid}.tmp`;
-  writeFileSync(tmpPath, JSON.stringify(safeDb, null, 2));
-  renameSync(tmpPath, dbPath);
+function writeDb(db, options) {
+  localDatabase.write(db, options);
 }
 
 function sendJson(res, status, payload) {
@@ -1201,7 +1326,151 @@ function applyLicenseCode(user, license) {
 
 async function handleApi(req, res, url) {
   const pathname = url.pathname;
-  const db = readDb();
+  let db = readDb();
+
+  if (req.method === "GET" && pathname === "/api/desktop/state") {
+    return sendJson(res, 200, {
+      license: publicDesktopLicense(db.desktop.license),
+      recoveryMessage: localDatabase.recoveryMessage(),
+      projects: db.desktop.projects
+        .slice()
+        .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+        .map((project) => publicDesktopProject(project))
+    });
+  }
+
+  if (req.method === "POST" && pathname === "/api/desktop/activate") {
+    const body = await readBody(req);
+    db = readDb();
+    const code = normalizeLicenseCode(body.code);
+    if (code.length !== 12) return sendJson(res, 400, { error: "Enter a 12 digit activation code." });
+    const staticLicense = staticLicenseCodes.find((item) => normalizeLicenseCode(item.code) === code);
+    if (!staticLicense) return sendJson(res, 404, { error: "This activation code is not valid." });
+    const details = licenseCodeTypes[staticLicense.type];
+    if (!details || details.plan === "free") {
+      return sendJson(res, 403, { error: "This support code does not include Creator access." });
+    }
+    const codeHash = desktopCodeHash(code);
+    if (db.desktop.activationHistory.some((entry) => entry.codeHash === codeHash)) {
+      return sendJson(res, 409, { error: "This code has already been activated in this installation." });
+    }
+    const currentLicense = sanitizeDesktopLicense(db.desktop.license);
+    if (desktopLicenseHasAccess(currentLicense) && planRank[currentLicense.plan] > planRank[details.plan]) {
+      return sendJson(res, 409, { error: "A higher plan is already active on this computer." });
+    }
+    const activatedAt = new Date();
+    const expiresAt = details.duration === "year"
+      ? addOneYear(activatedAt)
+      : details.duration === "month"
+        ? addOneMonth(activatedAt)
+        : null;
+    db.desktop.license = sanitizeDesktopLicense({
+      type: staticLicense.type,
+      codeHash,
+      activatedAt: activatedAt.toISOString(),
+      expiresAt: expiresAt || null
+    });
+    db.desktop.activationHistory.push({
+      codeHash,
+      type: staticLicense.type,
+      activatedAt: activatedAt.toISOString()
+    });
+    writeDb(db);
+    return sendJson(res, 200, {
+      license: publicDesktopLicense(db.desktop.license),
+      message: `${details.label} activated on this computer.`
+    });
+  }
+
+  if (pathname === "/api/desktop/backups" && req.method === "GET") {
+    return sendJson(res, 200, { backups: localDatabase.listBackups() });
+  }
+
+  if (pathname === "/api/desktop/backups/restore" && req.method === "POST") {
+    const body = await readBody(req);
+    let backup;
+    try { backup = localDatabase.getBackup(String(body.id || "")); }
+    catch { return sendJson(res, 404, { error: "This backup is unavailable. Your library was not changed." }); }
+    db = readDb();
+    if (!desktopLicenseHasAccess(db.desktop.license)) return sendJson(res, 403, { error: "An active Frame Lab license is required." });
+    const additions = backup.desktop.projects.filter(project => !db.desktop.projects.some(current =>
+      JSON.stringify(current.draft) === JSON.stringify(project.draft) && current.description === project.description
+      && ((current.id === project.id && current.name === project.name) || current.name === `${project.name} (restored)`)
+    ));
+    if (db.desktop.projects.length + additions.length > maxDesktopProjects) return sendJson(res, 409, { error: "There is not enough room to restore these projects. Export or remove some projects first. Nothing was changed." });
+    const restored = additions.map(source => {
+      const conflict = db.desktop.projects.some(project => project.id === source.id);
+      return sanitizeDesktopProject({ ...source, id: conflict ? randomBytes(12).toString("hex") : source.id, name: conflict ? `${source.name} (restored)` : source.name, updatedAt: new Date().toISOString() });
+    });
+    db.desktop.projects = [...restored, ...db.desktop.projects];
+    writeDb(db, { snapshot: true });
+    return sendJson(res, 200, { restored: restored.length });
+  }
+
+  if (pathname === "/api/desktop/projects/import" && req.method === "POST") {
+    const body = await readBody(req);
+    if (body.format !== "frame-lab-project" || body.version !== 1) return sendJson(res, 400, { error: "Choose a supported Frame Lab project file (.framelab)." });
+    const source = body.project;
+    if (!source?.draft || typeof source.draft !== "object" || Array.isArray(source.draft) || !source.draft.params || !source.draft.sketch) return sendJson(res, 400, { error: "This project file is incomplete." });
+    db = readDb();
+    if (!desktopLicenseHasAccess(db.desktop.license)) return sendJson(res, 403, { error: "An active Frame Lab license is required." });
+    if (db.desktop.projects.length >= maxDesktopProjects) return sendJson(res, 409, { error: "Your library has reached 500 projects. Export or remove a project first. Nothing was deleted." });
+    const project = sanitizeDesktopProject({ ...source, id: randomBytes(12).toString("hex"), updatedAt: new Date().toISOString() });
+    if (!Object.keys(project.draft).length) return sendJson(res, 400, { error: "This project is too large to import." });
+    db.desktop.projects.unshift(project);
+    writeDb(db, { snapshot: true });
+    return sendJson(res, 201, { project: publicDesktopProject(project, { includeDraft: true }) });
+  }
+
+  const desktopProjectMatch = pathname.match(/^\/api\/desktop\/projects(?:\/([^/]+))?$/);
+  if (desktopProjectMatch) {
+    if (!desktopLicenseHasAccess(db.desktop.license)) {
+      return sendJson(res, 403, { error: "An active Frame Lab license is required." });
+    }
+    const projectId = desktopProjectMatch[1] ? decodeURIComponent(desktopProjectMatch[1]) : "";
+    if (req.method === "GET" && projectId) {
+      const project = db.desktop.projects.find((item) => item.id === projectId);
+      if (!project) return sendJson(res, 404, { error: "Project not found." });
+      return sendJson(res, 200, { project: publicDesktopProject(project, { includeDraft: true }) });
+    }
+    if (req.method === "GET") {
+      return sendJson(res, 200, {
+        projects: db.desktop.projects
+          .slice()
+          .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+          .map((project) => publicDesktopProject(project))
+      });
+    }
+    if (req.method === "POST" && !projectId) {
+      const body = await readBody(req);
+      db = readDb();
+      if (!desktopLicenseHasAccess(db.desktop.license)) return sendJson(res, 403, { error: "An active Frame Lab license is required." });
+      const sourceProject = body.project && typeof body.project === "object" ? body.project : body;
+      const incoming = { ...sourceProject, updatedAt: new Date().toISOString() };
+      const existing = incoming.id
+        ? db.desktop.projects.find((item) => item.id === String(incoming.id))
+        : null;
+      if (incoming.id && !existing) return sendJson(res, 404, { error: "This project no longer exists. Your changes have not been discarded." });
+      if (!existing && db.desktop.projects.length >= maxDesktopProjects) return sendJson(res, 409, { error: "Your library has reached 500 projects. Export or remove a project first. Nothing was deleted." });
+      const project = sanitizeDesktopProject(incoming, existing || null);
+      if (!project || !Object.keys(project.draft || {}).length) {
+        return sendJson(res, 400, { error: "Project data is missing or too large." });
+      }
+      db.desktop.projects = [
+        project,
+        ...db.desktop.projects.filter((item) => item.id !== project.id)
+      ];
+      writeDb(db);
+      return sendJson(res, existing ? 200 : 201, { project: publicDesktopProject(project, { includeDraft: true }) });
+    }
+    if (req.method === "DELETE" && projectId) {
+      const existing = db.desktop.projects.find((item) => item.id === projectId);
+      if (!existing) return sendJson(res, 404, { error: "Project not found." });
+      db.desktop.projects = db.desktop.projects.filter((item) => item.id !== projectId);
+      writeDb(db, { snapshot: true });
+      return sendJson(res, 200, { ok: true, id: projectId });
+    }
+  }
 
   if (req.method === "POST" && pathname === "/api/auth/email") {
     const body = await readBody(req);

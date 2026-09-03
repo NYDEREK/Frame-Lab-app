@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-desktop-app="true">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Frame Lab | 3D Printed Eyewear</title>
-    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <title>Frame Lab</title>
+    <link rel="icon" href="./assets/frame-lab-icon.png" type="image/png" />
     <script>
       if (window.location.protocol === "file:") {
         window.location.replace("http://127.0.0.1:4173/");
@@ -16,7 +16,7 @@
         document.documentElement.dataset.appError = event.reason?.message || String(event.reason || "promise");
       });
     </script>
-    <link rel="stylesheet" href="./styles.css?v=creator-entry-20260604-07" />
+    <link rel="stylesheet" href="./styles.css?v=desktop-workspace-20260829-01" />
     <script type="importmap">
       {
         "imports": {
@@ -30,8 +30,86 @@
       }
     </script>
   </head>
-  <body>
+  <body class="desktop-product">
     <div class="app-shell">
+      <section id="desktopActivation" class="desktop-activation" aria-label="Activate Frame Lab">
+        <div class="desktop-activation-glow" aria-hidden="true"></div>
+        <div class="desktop-activation-layout">
+          <div class="desktop-activation-intro">
+            <div class="desktop-wordmark"><img class="desktop-app-icon" src="./assets/frame-lab-icon.png" width="40" height="40" alt="" /><strong>Frame Lab</strong></div>
+            <p class="desktop-kicker">Offline eyewear studio</p>
+            <h1>Design production-ready frames on your computer.</h1>
+            <p>Your license, projects and exports stay on this device. Frame Lab does not require an account or an internet connection.</p>
+            <div class="desktop-activation-points">
+              <article><span>01</span><div><strong>Local projects</strong><small>Your design library lives only on this computer.</small></div></article>
+              <article><span>02</span><div><strong>Production exports</strong><small>Generate 3MF parts, lens SVG and project files.</small></div></article>
+              <article><span>03</span><div><strong>No cloud account</strong><small>No email, password, sync or tracking.</small></div></article>
+            </div>
+          </div>
+          <div class="desktop-activation-card">
+            <span class="desktop-license-icon" aria-hidden="true">⌁</span>
+            <p class="desktop-kicker">License activation</p>
+            <h2 id="desktopActivationTitle">Enter your Frame Lab code</h2>
+            <p id="desktopActivationDescription">Use the 12-digit code received with your purchase. It will be remembered by this installation.</p>
+            <label class="desktop-code-field" for="desktopActivationCode">
+              <span>Activation code</span>
+              <input id="desktopActivationCode" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="0000-0000-0000" />
+            </label>
+            <button id="desktopActivateButton" type="button" class="accent desktop-activate-button">Activate Frame Lab</button>
+            <p id="desktopActivationNote" class="desktop-form-note" role="status"></p>
+            <small class="desktop-privacy-note">Activation is checked locally. No information leaves this computer.</small>
+          </div>
+        </div>
+      </section>
+
+      <header id="desktopHeader" class="desktop-header" hidden>
+        <button id="desktopBrandHome" class="desktop-brand" type="button" aria-label="Open projects">
+          <img class="desktop-app-icon" src="./assets/frame-lab-icon.png" width="36" height="36" alt="" />
+          <div><strong>Frame Lab</strong><small>Eyewear Studio</small></div>
+        </button>
+        <div class="desktop-header-actions">
+          <div id="desktopPlanBadge" class="desktop-plan-badge">
+            <div><strong>Plan</strong><small>Local license</small></div>
+          </div>
+        </div>
+      </header>
+
+      <main id="desktopDashboard" class="desktop-dashboard" hidden>
+        <section class="desktop-dashboard-hero">
+          <div>
+            <p class="desktop-kicker">Local workspace</p>
+            <h1>Your projects</h1>
+            <p>Open a saved frame or start a new production design.</p>
+          </div>
+          <div class="desktop-library-actions">
+            <button id="desktopHeroCreate" type="button" class="accent desktop-new-project-button"><span>＋</span> New Project</button>
+            <button id="desktopImportProject" type="button">Import Project</button>
+          </div>
+        </section>
+        <section class="desktop-library" aria-label="Saved projects">
+          <div class="desktop-library-head">
+            <div><h2>Recent work</h2><span id="desktopProjectCount">0 projects</span></div>
+            <span class="desktop-local-pill">Stored on this computer</span>
+          </div>
+          <div id="desktopProjectsGrid" class="desktop-projects-grid"></div>
+          <div id="desktopEmptyProjects" class="desktop-empty-projects" hidden>
+            <div class="desktop-empty-preview" aria-hidden="true"><span></span><i></i><b></b></div>
+            <h2>Create your first frame</h2>
+            <p>Every project is saved locally and remains available offline.</p>
+          </div>
+        </section>
+      </main>
+
+      <div id="desktopToast" class="desktop-toast" hidden role="status"></div>
+      <span id="desktopSaveState" hidden></span>
+      <input id="desktopImportFile" type="file" accept=".framelab" hidden />
+      <dialog id="desktopBackupsDialog" class="desktop-backups-dialog" aria-labelledby="desktopBackupsTitle">
+        <header><div><p class="desktop-kicker">Local library</p><h2 id="desktopBackupsTitle">Automatic backups</h2></div><form method="dialog"><button type="submit">Close</button></form></header>
+        <p>Restore projects as copies. Existing projects and your activation stay unchanged. These backups are on this computer; export a project file to keep a copy elsewhere.</p>
+        <div id="desktopBackupsList"></div>
+        <p id="desktopBackupsNote" role="status"></p>
+      </dialog>
+
       <div id="loaderOverlay" class="loader-overlay" hidden>
         <div class="loader-card">
           <div class="loader-ring" aria-hidden="true"></div>
@@ -53,8 +131,8 @@
           <label class="color-picker-control" for="colorPickerInput">
             <span>Selected color</span>
             <div class="color-picker-input-row">
-              <input id="colorPickerInput" type="color" value="#c96b34" />
-              <output id="colorPickerValue" class="color-picker-value">#C96B34</output>
+              <input id="colorPickerInput" type="color" value="#ff922f" />
+              <output id="colorPickerValue" class="color-picker-value">#FF922F</output>
             </div>
           </label>
           <div class="color-picker-dialog-actions">
@@ -435,7 +513,7 @@
           <span id="meshStatus" class="hidden-utility" hidden>Preview</span>
         </section>
 
-        <aside class="config-panel" aria-label="Parametry OpenSCAD">
+        <aside class="config-panel" aria-label="Frame parameters">
           <section class="panel-section">
             <div class="section-head">
               <div>
@@ -477,57 +555,51 @@
 
       <main id="designLab" class="design-lab" hidden>
         <section class="design-stage" aria-label="Parametric frame authoring view">
-          <canvas id="designScene" class="design-view-hidden"></canvas>
-          <canvas id="designSketchCanvas" aria-label="Technical sketch editor"></canvas>
-          <div class="design-stage-header">
-            <div>
-              <p class="eyebrow">Parametric collection authoring</p>
-              <h2>Creator</h2>
+          <div class="design-stage-chrome">
+            <button id="desktopBackToProjects" class="desktop-back-projects" type="button" aria-label="Back to projects"><span aria-hidden="true">←</span> Projects</button>
+            <div class="design-view-switch" role="group" aria-label="Design view">
+              <button id="designViewSketch" type="button" class="active">Drawing</button>
+              <button id="designView3d" type="button">Assembly 3D</button>
+            </div>
+            <div id="designStageTools" class="design-stage-tools" role="toolbar" aria-label="Creator tools">
+              <div class="design-toolbar-group" role="group" aria-label="History">
+                <button id="designUndo" type="button" disabled>Undo</button>
+                <button id="designRedo" type="button" disabled>Redo</button>
+              </div>
+              <div class="design-toolbar-group" role="group" aria-label="Measurement">
+                <button id="designMeasureToggle" type="button">Measure</button>
+                <button id="designMeasureClear" type="button" disabled>Clear</button>
+              </div>
+              <div id="designFrontPointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Front point tools">
+                <button id="addSketchPoint" type="button">+ Point</button>
+                <button id="removeSketchPoint" type="button">Remove</button>
+                <button id="designSharpCorner" type="button">Sharp</button>
+                <label>
+                  <span id="designSelectedCornerLabel">Point 1 radius</span>
+                  <input id="designSelectedCornerRadius" type="range" min="0" max="30" step="0.5" value="0" />
+                  <small>0 mm</small>
+                </label>
+              </div>
+              <div id="designTemplePointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Temple point tools" hidden>
+                <button id="addTemplePoint" type="button">+ Point</button>
+                <button id="removeTemplePoint" type="button">Remove</button>
+                <button id="designTempleSharpCorner" type="button">Sharp</button>
+                <label>
+                  <span id="designTempleSelectedCornerLabel">Point 1 radius</span>
+                  <input id="designTempleSelectedCornerRadius" type="range" min="0" max="12" step="0.1" value="0" />
+                  <small>0 mm</small>
+                </label>
+              </div>
             </div>
           </div>
-          <div class="design-view-switch" role="group" aria-label="Design view">
-            <button id="designViewSketch" type="button" class="active">Drawing</button>
-            <button id="designView3d" type="button">Assembly 3D</button>
-          </div>
-          <div id="designStageTools" class="design-stage-tools" role="toolbar" aria-label="Creator tools">
-            <div class="design-toolbar-group" role="group" aria-label="History">
-              <button id="designUndo" type="button" disabled>Undo</button>
-              <button id="designRedo" type="button" disabled>Redo</button>
-            </div>
-            <div class="design-toolbar-group" role="group" aria-label="Measurement">
-              <button id="designMeasureToggle" type="button">Measure</button>
-              <button id="designMeasureClear" type="button" disabled>Clear</button>
-            </div>
-            <div id="designFrontPointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Front point tools">
-              <button id="addSketchPoint" type="button">+ Point</button>
-              <button id="removeSketchPoint" type="button">Remove</button>
-              <button id="designSharpCorner" type="button">Sharp</button>
-              <label>
-                <span id="designSelectedCornerLabel">Point 1 radius</span>
-                <input id="designSelectedCornerRadius" type="range" min="0" max="30" step="0.5" value="0" />
-                <small>0 mm</small>
-              </label>
-            </div>
-            <div id="designTemplePointTools" class="design-toolbar-group design-point-toolbar" role="group" aria-label="Temple point tools" hidden>
-              <button id="addTemplePoint" type="button">+ Point</button>
-              <button id="removeTemplePoint" type="button">Remove</button>
-              <button id="designTempleSharpCorner" type="button">Sharp</button>
-              <label>
-                <span id="designTempleSelectedCornerLabel">Point 1 radius</span>
-                <input id="designTempleSelectedCornerRadius" type="range" min="0" max="12" step="0.1" value="0" />
-                <small>0 mm</small>
-              </label>
-            </div>
-          </div>
-          <div class="design-stage-footer">
-            <span id="designDimensions">150 mm frame / 18 mm bridge / 100 mm temple</span>
-            <span id="designMeasureReadout">Measure off</span>
-            <span id="designViewHint">Drag profile points to define the front opening</span>
+          <div class="design-stage-viewport">
+            <canvas id="designScene" class="design-view-hidden"></canvas>
+            <canvas id="designSketchCanvas" aria-label="Technical sketch editor"></canvas>
           </div>
         </section>
         <aside class="design-sidebar" aria-label="Parametric collection authoring">
           <header class="design-sidebar-head">
-            <p class="eyebrow">New collection template</p>
+            <p class="eyebrow">Local project</p>
             <h2>Production frame creator</h2>
             <input id="designName" type="text" value="My custom frame" maxlength="120" aria-label="Project name" />
             <textarea id="designDescription" rows="2" maxlength="260" placeholder="Short gallery description" aria-label="Gallery description"></textarea>
@@ -551,10 +623,6 @@
               <label><span>Temple opacity</span><input id="designTempleOpacity" type="range" min="15" max="100" step="1" value="100" /><small>100%</small></label>
               <label><span>Lens opacity</span><input id="designLensOpacity" type="range" min="15" max="100" step="1" value="62" /><small>62%</small></label>
             </div>
-          </section>
-          <section class="design-control-section design-warning-section">
-            <h3>Fit warnings</h3>
-            <div id="designWarnings" class="design-warning-list"></div>
           </section>
           <section id="designOperationsPanel" class="design-operations" role="tabpanel">
             <section class="design-control-section">
@@ -729,12 +797,12 @@
             </section>
           </section>
           <section id="designCodePanel" class="design-code-panel hidden-utility" aria-hidden="true" hidden>
-            <textarea id="designScadCode" spellcheck="false" aria-label="OpenSCAD source code"></textarea>
+            <textarea id="designScadCode" spellcheck="false" aria-label="Design source"></textarea>
             <div class="design-code-actions">
               <button id="regenerateDesignCode" type="button">Regenerate</button>
               <button id="applyDesignCode" type="button" class="accent">Apply code</button>
             </div>
-            <p class="design-note">The generated OpenSCAD contains the drawn profile, exposed dimensions and modeling operations.</p>
+            <p class="design-note">The design source contains the profile, dimensions and modeling operations.</p>
           </section>
           <footer class="design-submit">
             <p id="designStatus" class="design-note"></p>
@@ -748,7 +816,17 @@
                 <div class="design-submit-actions">
                   <button id="resetDesign" type="button">Reset</button>
                   <button id="exportDesign3mf" type="button" class="accent">3MF parts export</button>
-                  <button id="downloadDesignScad" type="button">Project .zip</button>
+                  <button id="downloadDesignScad" type="button">Export project</button>
+                </div>
+              </section>
+              <section class="design-action-section desktop-project-actions" aria-label="Project actions">
+                <header>
+                  <span>Project</span>
+                  <strong>Saved on this computer</strong>
+                </header>
+                <div class="design-submit-actions">
+                  <button id="desktopDuplicateProject" type="button">Duplicate</button>
+                  <button id="desktopSaveProject" type="button" class="accent">Save project</button>
                 </div>
               </section>
               <section id="designPublishingPanel" class="design-action-section design-publishing-section" aria-label="Publishing">
@@ -807,33 +885,33 @@
           <div class="brand-settings-grid">
             <label class="accent-picker">
               <span>Accent color</span>
-              <input id="brandAccentColor" type="color" value="#c96b34" />
+              <input id="brandAccentColor" type="color" value="#ff922f" />
             </label>
             <label class="accent-picker">
               <span>Background</span>
-              <input id="brandBackgroundColor" type="color" value="#0c0d0d" />
+              <input id="brandBackgroundColor" type="color" value="#202121" />
             </label>
             <label class="accent-picker">
               <span>Surface</span>
-              <input id="brandSurfaceColor" type="color" value="#141616" />
+              <input id="brandSurfaceColor" type="color" value="#151515" />
             </label>
             <label class="accent-picker">
               <span>Text</span>
-              <input id="brandTextColor" type="color" value="#f1eee9" />
+              <input id="brandTextColor" type="color" value="#f2dfc1" />
             </label>
             <label class="accent-picker">
               <span>Secondary text</span>
-              <input id="brandMutedColor" type="color" value="#9a9690" />
+              <input id="brandMutedColor" type="color" value="#a09d97" />
             </label>
             <label class="accent-picker">
               <span>Border</span>
-              <input id="brandBorderColor" type="color" value="#292c2c" />
+              <input id="brandBorderColor" type="color" value="#313434" />
             </label>
             <label class="accent-picker">
               <span>3D scene</span>
-              <input id="brandSceneColor" type="color" value="#070909" />
+              <input id="brandSceneColor" type="color" value="#4d4d4d" />
             </label>
-            <input id="brandAccentText" type="text" value="#c96b34" aria-label="Accent color hex" />
+            <input id="brandAccentText" type="text" value="#ff922f" aria-label="Accent color hex" />
             <button id="saveBrandSettings" type="button" class="accent">Save brand</button>
             <button id="resetBrandSettings" type="button">Reset</button>
           </div>
@@ -1129,6 +1207,6 @@
         window.frameLabPublicBoot.ready = true;
       });
     </script>
-    <script type="module" src="./src/app.js?v=creator-entry-20260604-08"></script>
+    <script type="module" src="./src/app.js?v=desktop-workspace-20260829-01"></script>
   </body>
 </html>

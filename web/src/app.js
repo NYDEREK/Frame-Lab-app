@@ -136,9 +136,9 @@ const translations = {
     loaderStlText: "Writing the current geometry...",
     savedModel: "Saved model to gallery",
     resetLog: "Parameters restored to the production baseline.",
-    exportedScad: "Exported OpenSCAD file.",
+    exportedScad: "Exported design source.",
     exportedJson: "Exported parameter JSON.",
-    copiedScad: "Copied OpenSCAD source to clipboard."
+    copiedScad: "Copied design source to clipboard."
   }
 };
 
@@ -310,10 +310,10 @@ function designRimSpan(p) {
 const defaultModelId = "frame001-sun-01";
 const ownerDeveloperEmail = "nyderek@framelab.dev";
 const adminEmails = new Set([ownerDeveloperEmail, "s.nyderek@proton.me"]);
-const defaultAccentColor = "#c96b34";
+const defaultAccentColor = "#ff922f";
 const defaultHeroImage = "./assets/frame-lab-hero.png";
 const defaultPrintGuideImage = "./assets/print-guide-honeycomb.svg";
-const defaultColorSlots = ["#ff741f", "#2d2b27", "#f1eee9", "#0f1010", "#8f8b82"];
+const defaultColorSlots = ["#ff741f", "#2d2b27", "#f2dfc1", "#0f1010", "#8f8b82"];
 const planProductIds = ["personal_lifetime", "commercial_lifetime", "personal_year", "commercial_year", "supporter", "ultra_support"];
 const accessPlanIds = ["free", "basic", "pro", "studio"];
 const defaultContentSettings = {
@@ -416,12 +416,12 @@ const defaultContentSettings = {
 };
 const defaultBrandSettings = {
   accentColor: defaultAccentColor,
-  backgroundColor: "#0c0d0d",
-  surfaceColor: "#141616",
-  textColor: "#f1eee9",
-  mutedColor: "#9a9690",
-  borderColor: "#292c2c",
-  sceneColor: "#070909",
+  backgroundColor: "#202121",
+  surfaceColor: "#151515",
+  textColor: "#f2dfc1",
+  mutedColor: "#a09d97",
+  borderColor: "#313434",
+  sceneColor: "#4d4d4d",
   heroTitle: "Your next frame is 3D printed.",
   heroText: "Choose a collection, combine a front with temples, and prepare a clean production kit for additive manufacturing.",
   heroImage: "",
@@ -711,6 +711,11 @@ const state = {
   activeParametricDesign: null,
   designDraft: createDefaultDesignDraft(),
   designSubmissions: [],
+  desktop: {
+    license: null,
+    projects: [],
+    activeProjectId: ""
+  },
   system: {
     storage: { persistent: false, source: "unknown", message: "" }
   },
@@ -726,6 +731,30 @@ const state = {
 };
 
 const els = {
+  desktopActivation: document.querySelector("#desktopActivation"),
+  desktopActivationTitle: document.querySelector("#desktopActivationTitle"),
+  desktopActivationDescription: document.querySelector("#desktopActivationDescription"),
+  desktopActivationCode: document.querySelector("#desktopActivationCode"),
+  desktopActivateButton: document.querySelector("#desktopActivateButton"),
+  desktopActivationNote: document.querySelector("#desktopActivationNote"),
+  desktopHeader: document.querySelector("#desktopHeader"),
+  desktopBrandHome: document.querySelector("#desktopBrandHome"),
+  desktopHeroCreate: document.querySelector("#desktopHeroCreate"),
+  desktopDashboard: document.querySelector("#desktopDashboard"),
+  desktopProjectsGrid: document.querySelector("#desktopProjectsGrid"),
+  desktopEmptyProjects: document.querySelector("#desktopEmptyProjects"),
+  desktopProjectCount: document.querySelector("#desktopProjectCount"),
+  desktopPlanBadge: document.querySelector("#desktopPlanBadge"),
+  desktopSaveState: document.querySelector("#desktopSaveState"),
+  desktopToast: document.querySelector("#desktopToast"),
+  desktopBackToProjects: document.querySelector("#desktopBackToProjects"),
+  desktopDuplicateProject: document.querySelector("#desktopDuplicateProject"),
+  desktopSaveProject: document.querySelector("#desktopSaveProject"),
+  desktopImportProject: document.querySelector("#desktopImportProject"),
+  desktopImportFile: document.querySelector("#desktopImportFile"),
+  desktopBackupsDialog: document.querySelector("#desktopBackupsDialog"),
+  desktopBackupsList: document.querySelector("#desktopBackupsList"),
+  desktopBackupsNote: document.querySelector("#desktopBackupsNote"),
   topbar: document.querySelector(".topbar"),
   homePage: document.querySelector("#homePage"),
   workspace: document.querySelector("#workspace"),
@@ -891,13 +920,10 @@ const els = {
   designTempleChamferAmount: document.querySelector("#designTempleChamferAmount"),
   designViewSketch: document.querySelector("#designViewSketch"),
   designView3d: document.querySelector("#designView3d"),
-  designViewHint: document.querySelector("#designViewHint"),
   designUndo: document.querySelector("#designUndo"),
   designRedo: document.querySelector("#designRedo"),
   designMeasureToggle: document.querySelector("#designMeasureToggle"),
   designMeasureClear: document.querySelector("#designMeasureClear"),
-  designMeasureReadout: document.querySelector("#designMeasureReadout"),
-  designWarnings: document.querySelector("#designWarnings"),
   designExtrudeDepth: document.querySelector("#designExtrudeDepth"),
   designFilletRadius: document.querySelector("#designFilletRadius"),
   designChamferAmount: document.querySelector("#designChamferAmount"),
@@ -936,7 +962,6 @@ const els = {
   designTempleTextSize: document.querySelector("#designTempleTextSize"),
   designTempleTextPosition: document.querySelector("#designTempleTextPosition"),
   designTempleTextDepth: document.querySelector("#designTempleTextDepth"),
-  designDimensions: document.querySelector("#designDimensions"),
   designStatus: document.querySelector("#designStatus"),
   designSubmissionStatus: document.querySelector("#designSubmissionStatus"),
   designPublishingPanel: document.querySelector("#designPublishingPanel"),
@@ -1041,6 +1066,12 @@ let persistTimer = null;
 let backendPersistTimer = null;
 let saveCollectionFeedbackTimer = null;
 let collectionEditorFeedbackTimer = null;
+let desktopProjectPersistTimer = null;
+let desktopToastTimer = null;
+let desktopRevision = 0;
+let desktopSavedRevision = 0;
+let desktopSavePromise = null;
+let desktopTransitionPending = false;
 let cameraZoomScale = 1;
 let viewerFitRadius = 100;
 const cameraTarget = new THREE.Vector3(0, 0, 0);
@@ -1091,6 +1122,7 @@ const bootState = window.frameLabBoot || {
   resetDesignDraftRequested: false,
   pendingCollectionId: ""
 };
+const desktopProductMode = document.documentElement.dataset.desktopApp === "true";
 
 init().catch(handleBootError);
 
@@ -1104,8 +1136,10 @@ async function init() {
   renderPublicContent();
   await hydrateSystemStatus();
   await hydrateBrandSettings();
-  await hydrateSessionFromBackend();
+  if (desktopProductMode) await hydrateDesktopState();
+  else await hydrateSessionFromBackend();
   updateAccountUi();
+  updateDesktopShell();
   renderPublicContent();
   setupNavigation();
   state.models = await loadStoredModels();
@@ -1138,6 +1172,7 @@ async function init() {
   if (designRenderer && designScene && designCamera && designModelGroup) renderDesignPreview();
   renderGallery();
   renderPublicContent();
+  updateDesktopShell();
   if (bootState.designLabRequested && bootState.resetDesignDraftRequested) {
     resetDesignDraft();
   }
@@ -1155,6 +1190,7 @@ async function init() {
   } else if (bootState.designLabRequested) {
     showLoader(false);
   }
+  if (desktopProductMode && !desktopHasActiveLicense()) showDesktopActivation();
   animate();
 }
 
@@ -1806,6 +1842,11 @@ function redoDesignChange() {
 function setupDesignSketch() {
   if (!els.designSketchCanvas) return;
   setDesignView("sketch");
+  // Redraw after window resizing or toolbar wrapping changes the canvas size.
+  const sketchResizeObserver = new ResizeObserver(() => {
+    if (state.designDraft.view !== "3d") drawDesignSketch();
+  });
+  sketchResizeObserver.observe(els.designSketchCanvas);
   const locatePoint = (event) => {
     if (state.designDraft.step !== "front") return -1;
     const metrics = designSketchMetrics();
@@ -1980,9 +2021,11 @@ function setupDesignSketch() {
     renderDesignPreview({ fitView: false });
   });
   const finish = () => {
+    const changed = designSketchDragIndex >= 0 || designTempleSketchDragIndex >= 0 || Boolean(designTempleTextDragState);
     designSketchDragIndex = -1;
     designTempleSketchDragIndex = -1;
     designTempleTextDragState = null;
+    if (changed) scheduleDesktopProjectAutosave();
   };
   els.designSketchCanvas.addEventListener("pointerup", finish);
   els.designSketchCanvas.addEventListener("pointercancel", finish);
@@ -2048,14 +2091,6 @@ function updateDesignMeasureUi() {
     els.designMeasureToggle.setAttribute("aria-pressed", String(designMeasureMode));
   }
   if (els.designMeasureClear) els.designMeasureClear.disabled = !designMeasurePoints.length && !designMeasureMode;
-  if (els.designMeasureReadout) {
-    const distance = designMeasurementDistance();
-    els.designMeasureReadout.textContent = distance !== null
-      ? `Measure ${formatNumber(distance)} mm`
-      : designMeasureMode
-        ? designMeasurePoints.length ? "Measure: pick second point" : "Measure: pick first point"
-        : "Measure off";
-  }
 }
 
 function clearDesignMeasurement(redraw = true) {
@@ -2190,16 +2225,6 @@ function setDesignView(view) {
   els.designCanvas?.classList.toggle("design-view-hidden", sketch);
   els.designViewSketch?.classList.toggle("active", sketch);
   els.designView3d?.classList.toggle("active", !sketch);
-  if (els.designViewHint) {
-    if (!sketch) els.designViewHint.textContent = "Drag to rotate / Scroll to zoom";
-    else if (state.designDraft.step === "left-temple") {
-      els.designViewHint.textContent = "Drag the orange handles to define the temple path";
-    } else if (state.designDraft.step === "right-temple") {
-      els.designViewHint.textContent = "Mirrored fit from the left temple / Edit readable detail on the right";
-    } else {
-      els.designViewHint.textContent = "Drag profile points to define the lens opening";
-    }
-  }
   syncDesignStageToolbar();
   if (sketch) drawDesignSketch();
   else {
@@ -2253,13 +2278,13 @@ function templeSketchMetrics() {
   c = normalizeDesignTempleTextPlacement(c, rawProfile, style);
   const profile = normalizeDesignTempleSketch(state.designDraft.templeSketch, c);
   const usableWidth = Math.max(100, rect.width - 156);
-  const usableHeight = Math.max(100, rect.height - 180);
+  const usableHeight = Math.max(24, rect.height - 194);
   const totalWidth = Math.max(...profile.points.map(([x]) => x), 1);
   const top = Math.max(...profile.points.map(([, y]) => y));
   const bottom = Math.min(...profile.points.map(([, y]) => y));
   const totalHeight = top - bottom + 18;
   const scale = Math.min(usableWidth / Math.max(100, totalWidth), usableHeight / Math.max(45, totalHeight));
-  const origin = { x: 86, y: Math.max(180, rect.height * 0.38) };
+  const origin = { x: 86, y: Math.max(124 + top * scale, Math.min(rect.height * 0.45, rect.height - 54 + bottom * scale)) };
   const screenPoints = profile.points.map(([x, y]) => ({ x: origin.x + x * scale, y: origin.y - y * scale }));
   return { rect, construction: c, profile, scale, origin, screenPoints, totalWidth, top, bottom };
 }
@@ -2571,11 +2596,11 @@ function designDrawingColors() {
   const styles = getComputedStyle(document.documentElement);
   const read = (key, fallback) => styles.getPropertyValue(key).trim() || fallback;
   return {
-    background: read("--scene-bg-2", "#0c0d0d"),
-    grid: read("--line", "#292c2c"),
+    background: read("--scene-bg-2", "#4d4d4d"),
+    grid: read("--line", "#313434"),
     axis: read("--line-strong", "#3a3d3d"),
     stroke: read("--accent-2", "#df8955"),
-    accent: read("--accent", "#c96b34"),
+    accent: read("--accent", "#ff922f"),
     dimension: read("--accent-2", "#df8955"),
     text: read("--ink", "#f3dfc2"),
     muted: read("--muted", "#aaa39c"),
@@ -2807,10 +2832,10 @@ function drawTempleSketch(mirrored = false) {
   ctx.fillStyle = colors.text;
   ctx.font = "700 13px Inter, Arial, sans-serif";
   ctx.textAlign = mirrored ? "right" : "left";
-  ctx.fillText(mirrored ? "TEMPLE HINGE LEFT / WEARER SIDE" : "TEMPLE HINGE RIGHT / WEARER SIDE", mirrored ? rect.width - 38 : 38, 188);
+  ctx.fillText(mirrored ? "TEMPLE HINGE LEFT / WEARER SIDE" : "TEMPLE HINGE RIGHT / WEARER SIDE", mirrored ? rect.width - 38 : 38, 26);
   ctx.font = "500 12px Inter, Arial, sans-serif";
   ctx.fillStyle = colors.muted;
-  ctx.fillText("Closed extruded profile / select a vertex to round it", mirrored ? rect.width - 38 : 38, 208);
+  ctx.fillText("Closed extruded profile / select a vertex to round it", mirrored ? rect.width - 38 : 38, 46);
 }
 
 function drawDesignSketch() {
@@ -2899,18 +2924,6 @@ function drawDesignSketch() {
     x: centerX + measurement.x * scale,
     y: centerY - measurement.y * scale
   }), "front");
-  ctx.fillStyle = colors.fill;
-  ctx.strokeStyle = colors.stroke;
-  ctx.lineWidth = 1;
-  ctx.fillRect(32, rect.height - 86, 215, 54);
-  ctx.strokeRect(32, rect.height - 86, 215, 54);
-  ctx.fillStyle = colors.text;
-  ctx.font = "700 11px Inter, Arial, sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("INTERNAL LENS CHANNEL", 44, rect.height - 62);
-  ctx.fillStyle = colors.muted;
-  ctx.font = "500 11px Inter, Arial, sans-serif";
-  ctx.fillText(`${formatNumber(construction.lensSeatWidth)} mm slot / ${formatNumber(construction.lensSeatDepth)} mm capture / ${formatNumber(construction.lensClearance)} mm fit`, 44, rect.height - 44);
 }
 
 function updateDesignCamera() {
@@ -2994,10 +3007,6 @@ function renderDesignPreview(options = {}) {
     designZoomScale = 1;
     fitDesignCamera();
   }
-  if (els.designDimensions) {
-    els.designDimensions.textContent = `${formatNumber(p.head_width)} mm frame / ${formatNumber(p.bridge_width)} mm bridge / ${formatNumber(p.temple_length)} mm temple`;
-  }
-  renderDesignFitWarnings();
   updateDesignHistoryControls();
   updateDesignMeasureUi();
   drawDesignSketch();
@@ -4591,6 +4600,54 @@ function bindUi() {
   if (uiBound) return;
   uiBound = true;
 
+  els.desktopActivationCode?.addEventListener("input", () => {
+    els.desktopActivationCode.value = formatLicenseCode(els.desktopActivationCode.value);
+    if (els.desktopActivationNote) els.desktopActivationNote.textContent = "";
+  });
+  els.desktopActivationCode?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    activateDesktopLicense();
+  });
+  els.desktopActivateButton?.addEventListener("click", activateDesktopLicense);
+  const openProjects = async () => {
+    await withDesktopTransition(() => goHome());
+  };
+  els.desktopBrandHome?.addEventListener("click", openProjects);
+  els.desktopBackToProjects?.addEventListener("click", openProjects);
+  els.desktopHeroCreate?.addEventListener("click", startDesktopProject);
+  els.desktopSaveProject?.addEventListener("click", () => saveDesktopProject());
+  els.desktopDuplicateProject?.addEventListener("click", () => duplicateDesktopProject());
+  els.desktopProjectsGrid?.addEventListener("click", handleDesktopProjectsClick);
+  els.desktopImportProject?.addEventListener("click", () => els.desktopImportFile?.click());
+  els.desktopImportFile?.addEventListener("change", importDesktopProjectFile);
+  els.desktopBackupsList?.addEventListener("click", restoreDesktopBackup);
+  if (desktopProductMode) {
+    window.frameLabDesktopSession = Object.freeze({
+      hasUnsavedChanges: () => desktopRevision > desktopSavedRevision || Boolean(desktopSavePromise),
+      saveBeforeLeaving: flushDesktopProject,
+      discardPendingChanges: markDesktopProjectClean,
+      openBackups: () => {
+        if (!desktopHasActiveLicense()) return false;
+        return withDesktopTransition(async () => {
+          goHome();
+          await showDesktopBackups();
+        });
+      }
+    });
+    window.addEventListener("beforeunload", (event) => {
+      if (!window.frameLabDesktopSession.hasUnsavedChanges()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+  }
+  window.addEventListener("keydown", (event) => {
+    if (!desktopProductMode || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+    if (els.designLab?.hidden) return;
+    event.preventDefault();
+    saveDesktopProject();
+  });
+
   els.controls.addEventListener("input", (event) => {
     const input = event.target;
     if (!input.dataset.param) return;
@@ -4919,35 +4976,55 @@ function bindUi() {
     els.designAssemblyPanel,
     els.designAppearancePanel
   ].forEach((panel) => {
-    panel?.addEventListener("input", handleDesignOperationChange);
-    panel?.addEventListener("change", handleDesignOperationChange);
+    panel?.addEventListener("input", (event) => {
+      handleDesignOperationChange(event);
+      scheduleDesktopProjectAutosave();
+    });
+    panel?.addEventListener("change", (event) => {
+      handleDesignOperationChange(event);
+      scheduleDesktopProjectAutosave();
+    });
     panel?.addEventListener("focusout", (event) => {
       if (event.target.matches('input[type="number"], input[type="text"], textarea')) {
         handleDesignOperationChange(event);
+        scheduleDesktopProjectAutosave();
       }
     });
   });
   els.designViewSketch?.addEventListener("click", () => setDesignView("sketch"));
   els.designView3d?.addEventListener("click", () => setDesignView("3d"));
-  els.designUndo?.addEventListener("click", undoDesignChange);
-  els.designRedo?.addEventListener("click", redoDesignChange);
+  els.designUndo?.addEventListener("click", () => {
+    undoDesignChange();
+    scheduleDesktopProjectAutosave();
+  });
+  els.designRedo?.addEventListener("click", () => {
+    redoDesignChange();
+    scheduleDesktopProjectAutosave();
+  });
   els.designMeasureToggle?.addEventListener("click", () => setDesignMeasureMode(!designMeasureMode));
   els.designMeasureClear?.addEventListener("click", () => clearDesignMeasurement(true));
-  els.addSketchPoint?.addEventListener("click", addDesignSketchPoint);
-  els.removeSketchPoint?.addEventListener("click", removeDesignSketchPoint);
-  els.designSharpCorner?.addEventListener("click", () => updateSelectedDesignCorner(0));
-  els.addTemplePoint?.addEventListener("click", addDesignTempleSketchPoint);
-  els.removeTemplePoint?.addEventListener("click", removeDesignTempleSketchPoint);
-  els.designTempleSharpCorner?.addEventListener("click", () => updateSelectedDesignTempleCorner(0));
-  els.designName?.addEventListener("input", handleDesignProjectCopyChange);
-  els.designDescription?.addEventListener("input", handleDesignProjectCopyChange);
+  els.addSketchPoint?.addEventListener("click", () => { addDesignSketchPoint(); scheduleDesktopProjectAutosave(); });
+  els.removeSketchPoint?.addEventListener("click", () => { removeDesignSketchPoint(); scheduleDesktopProjectAutosave(); });
+  els.designSharpCorner?.addEventListener("click", () => { updateSelectedDesignCorner(0); scheduleDesktopProjectAutosave(); });
+  els.addTemplePoint?.addEventListener("click", () => { addDesignTempleSketchPoint(); scheduleDesktopProjectAutosave(); });
+  els.removeTemplePoint?.addEventListener("click", () => { removeDesignTempleSketchPoint(); scheduleDesktopProjectAutosave(); });
+  els.designTempleSharpCorner?.addEventListener("click", () => { updateSelectedDesignTempleCorner(0); scheduleDesktopProjectAutosave(); });
+  [els.designName, els.designDescription].forEach((field) => {
+    field?.addEventListener("input", () => {
+      handleDesignProjectCopyChange();
+      scheduleDesktopProjectAutosave();
+    });
+  });
   els.regenerateDesignCode?.addEventListener("click", () => {
     state.designDraft.manualCode = false;
     syncDesignCode();
-    setDesignNote("OpenSCAD code regenerated from operations.");
+    setDesignNote("Design source updated.");
   });
   els.applyDesignCode?.addEventListener("click", applyDesignCode);
-  els.resetDesign?.addEventListener("click", () => resetDesignDraft({ capture: true }));
+  els.resetDesign?.addEventListener("click", () => {
+    resetDesignDraft({ capture: true });
+    scheduleDesktopProjectAutosave();
+  });
   els.exportDesign3mf?.addEventListener("click", exportDesign3mf);
   els.downloadDesignScad?.addEventListener("click", exportDesignScad);
   els.saveDesignCollection?.addEventListener("click", saveDesignToCollections);
@@ -5249,7 +5326,6 @@ function syncDesignFields() {
   setDesignSliderFieldValue(els.designTempleTextDepth, construction.templeTextDepth, "mm");
   syncDesignSelectedCornerField();
   syncDesignTempleSelectedCornerField();
-  renderDesignFitWarnings();
   renderDesignProductionChecks();
 }
 
@@ -5405,28 +5481,6 @@ function designFitWarnings() {
     }
   }
   return warnings;
-}
-
-function renderDesignFitWarnings() {
-  if (!els.designWarnings) return;
-  const warnings = designFitWarnings();
-  if (!warnings.length) {
-    els.designWarnings.innerHTML = `
-      <article class="design-warning is-ok">
-        <em>Ready</em>
-        <strong>Geometry looks production-ready</strong>
-        <small>No obvious lens, bridge or temple fit risks in the current settings.</small>
-      </article>
-    `;
-    return;
-  }
-  els.designWarnings.innerHTML = warnings.slice(0, 5).map((warning) => `
-    <article class="design-warning is-${escapeHtml(warning.level)}">
-      <em>${escapeHtml(warning.level === "critical" ? "Fix" : "Check")}</em>
-      <strong>${escapeHtml(warning.title)}</strong>
-      <small>${escapeHtml(warning.detail)}</small>
-    </article>
-  `).join("");
 }
 
 function renderDesignProductionChecks() {
@@ -6019,7 +6073,7 @@ function parseDesignCode(source) {
 function applyDesignCode() {
   const source = String(els.designScadCode?.value || "").trim();
   if (!source) {
-    setDesignNote("Enter OpenSCAD code before applying.");
+    setDesignNote("Enter a design source before applying.");
     return;
   }
   captureDesignHistory();
@@ -6041,7 +6095,7 @@ function applyDesignCode() {
   state.designDraft.manualCode = true;
   buildDesignControls();
   renderDesignPreview({ fitView: false });
-  setDesignNote("Supported OpenSCAD parameters applied to the preview. Custom code is kept in the submitted file.");
+  setDesignNote("Design parameters applied to the preview.");
 }
 
 function resetDesignDraft(options = {}) {
@@ -6060,7 +6114,10 @@ function resetDesignDraft(options = {}) {
 }
 
 async function exportDesignScad() {
+  if (desktopProductMode) return exportDesktopProjectFile();
   syncDesignDraftFromControlValues({ preserveManualCode: true });
+  if (!(await ensureDownloadAllowed(null))) return;
+  if (desktopProductMode && !(await saveDesktopProject({ silent: true }))) return;
   const source = state.designDraft.manualCode ? els.designScadCode.value : buildDesignScad(state.designDraft);
   const projectRoot = slugify(state.designDraft.name) || "frame-lab-design";
   const files = { [`${projectRoot}.scad`]: strToU8(source) };
@@ -6075,7 +6132,7 @@ async function exportDesignScad() {
     );
     const bundle = zipSync(files);
     downloadBlob(`${projectRoot}-design-kit.zip`, new Blob([bundle], { type: "application/zip" }));
-    setDesignNote("OpenSCAD project kit downloaded with the production hinge library.");
+    setDesignNote("Design source kit downloaded.");
   } catch (error) {
     downloadText(`${projectRoot}.scad`, source, "application/scad");
     setDesignNote("Source downloaded. The hinge library could not be included.");
@@ -6085,6 +6142,7 @@ async function exportDesignScad() {
 async function exportDesign3mf() {
   syncDesignDraftFromControlValues({ preserveManualCode: true });
   if (!(await ensureDownloadAllowed(null))) return;
+  if (desktopProductMode && !(await saveDesktopProject({ silent: true }))) return;
   showLoader(true, "Generating Creator 3MF", "Packing separate front, lens and temple production files...");
   await waitFrame();
   try {
@@ -6213,7 +6271,7 @@ function updateDesignPublishingAccess() {
 function captureDesignThumbnail() {
   if (!designRenderer || !designScene || !designCamera) return "";
   try {
-    const stage = els.designCanvas?.closest(".design-stage");
+    const stage = els.designCanvas?.closest(".design-stage-viewport");
     const width = Math.max(1, Math.floor(stage?.clientWidth || els.designCanvas?.clientWidth || 1));
     const height = Math.max(1, Math.floor(stage?.clientHeight || els.designCanvas?.clientHeight || 1));
     designCamera.aspect = width / height;
@@ -6239,7 +6297,7 @@ async function submitDesignForReview() {
   }
   const source = state.designDraft.manualCode ? String(els.designScadCode?.value || "") : buildDesignScad(state.designDraft);
   if (!source.trim()) {
-    setDesignNote("OpenSCAD source is required before submission.");
+    setDesignNote("Design source is required before submission.");
     return;
   }
   els.submitDesign.disabled = true;
@@ -6729,6 +6787,18 @@ function colorLuminance(hex) {
 
 function applyBrandSettings() {
   state.brandSettings = normalizeBrandSettings(state.brandSettings);
+  if (desktopProductMode) {
+    state.brandSettings = {
+      ...state.brandSettings,
+      accentColor: defaultBrandSettings.accentColor,
+      backgroundColor: defaultBrandSettings.backgroundColor,
+      surfaceColor: defaultBrandSettings.surfaceColor,
+      textColor: defaultBrandSettings.textColor,
+      mutedColor: defaultBrandSettings.mutedColor,
+      borderColor: defaultBrandSettings.borderColor,
+      sceneColor: defaultBrandSettings.sceneColor
+    };
+  }
   const accent = state.brandSettings.accentColor;
   const background = state.brandSettings.backgroundColor;
   const surface = state.brandSettings.surfaceColor;
@@ -7231,7 +7301,7 @@ function setBrandColor(key, value, options = {}) {
   if (!Object.prototype.hasOwnProperty.call(defaultBrandSettings, key) || !key.endsWith("Color")) return false;
   const color = sanitizeHexColor(value, "");
   if (!color) {
-    if (els.brandSettingsNote) els.brandSettingsNote.textContent = "Use a six digit hex color, for example #c96b34.";
+    if (els.brandSettingsNote) els.brandSettingsNote.textContent = "Use a six digit hex color, for example #ff922f.";
     return false;
   }
   state.brandSettings[key] = color;
@@ -8513,7 +8583,7 @@ function categoryRank(category) {
 
 function normalizeStoredModel(model) {
   if (!model || typeof model !== "object") return null;
-  const name = String(model.name || "Model OpenSCAD").trim() || "Model OpenSCAD";
+  const name = String(model.name || "Frame Lab model").trim() || "Frame Lab model";
   const category = model.category === "optical" ? "optical" : "sun";
   const access = ["free", "basic", "pro", "studio"].includes(model.access) ? model.access : "basic";
   const description = String(model.description || "").trim();
@@ -8805,6 +8875,31 @@ function scheduleModelPersist() {
 }
 
 function setActiveSection(section) {
+  if (desktopProductMode) {
+    const activeSection = section === "design-lab" || section === "configurator" ? section : "home";
+    const showEditor = activeSection === "configurator";
+    const showDesignLab = activeSection === "design-lab";
+    const showDashboard = activeSection === "home" && desktopHasActiveLicense();
+    els.homePage.hidden = true;
+    els.workspace.hidden = !showEditor;
+    els.designLab.hidden = !showDesignLab;
+    els.studioPanel.hidden = true;
+    els.collectionEditorPanel.hidden = true;
+    els.licensePanel.hidden = true;
+    if (els.desktopDashboard) els.desktopDashboard.hidden = !showDashboard;
+    if (els.desktopHeader) els.desktopHeader.hidden = !desktopHasActiveLicense();
+    if (showEditor) {
+      resize();
+      render();
+    }
+    if (showDesignLab) {
+      requestAnimationFrame(() => {
+        resizeDesignScene();
+        renderDesignPreview({ fitView: true });
+      });
+    }
+    return activeSection;
+  }
   if (section === "studio") section = "developer";
   if (section === "developer" && !isDeveloper()) section = "home";
   if (section === "collection-editor" && !isDeveloper()) section = "home";
@@ -8863,6 +8958,9 @@ function setActiveHomeLink(selector) {
 }
 
 function routeForView(section) {
+  if (desktopProductMode) {
+    return section === "design-lab" ? "#creator" : section === "configurator" ? "#configurator" : "#projects";
+  }
   return {
     configurator: "#configurator",
     "design-lab": "#design-lab",
@@ -8880,6 +8978,7 @@ function updateNavigationHistory(hash, options = {}) {
 
 function navigateToView(section, options = {}) {
   if ((section === "configurator" || section === "design-lab") && !canOpenCreator()) {
+    if (desktopProductMode) return;
     scrollHomeSection("#plansPublicPanel", { replace: options.replace });
     return;
   }
@@ -8893,6 +8992,10 @@ function scrollGalleryIntoView(options = {}) {
 }
 
 function scrollHomeSection(selector, options = {}) {
+  if (desktopProductMode) {
+    goHome();
+    return;
+  }
   const targetSelector = homeNavigationEntries().some((entry) => entry.selector === selector) ? selector : "#top";
   setActiveSection("home");
   setActiveHomeLink(targetSelector);
@@ -8909,6 +9012,17 @@ function scrollToPageTarget(target, behavior = "smooth") {
 }
 
 function goHome() {
+  if (desktopProductMode) {
+    if (!desktopHasActiveLicense()) {
+      showDesktopActivation();
+      updateNavigationHistory("#activate", { replace: true });
+      return;
+    }
+    setActiveSection("home");
+    updateNavigationHistory("#projects");
+    window.scrollTo({ top: 0, behavior: "auto" });
+    return;
+  }
   scrollHomeSection("#top");
 }
 
@@ -8924,6 +9038,20 @@ function syncActiveHomeSection() {
 }
 
 function restoreNavigationRoute() {
+  if (desktopProductMode) {
+    if (!desktopHasActiveLicense()) {
+      showDesktopActivation();
+      if (window.location.hash !== "#activate") updateNavigationHistory("#activate", { replace: true });
+      return;
+    }
+    if (window.location.hash === "#creator") setActiveSection("design-lab");
+    else {
+      setActiveSection("home");
+      if (window.location.hash !== "#projects") updateNavigationHistory("#projects", { replace: true });
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+    return;
+  }
   if (els.imageLightbox && !els.imageLightbox.hidden) closePrintGuideLightbox({ restoreFocus: false });
   const viewSections = {
     "#configurator": "configurator",
@@ -8958,7 +9086,7 @@ function setupNavigation() {
     return;
   }
   navigationBound = true;
-  const initialHash = window.location.hash || "#top";
+  const initialHash = window.location.hash || (desktopProductMode ? (desktopHasActiveLicense() ? "#projects" : "#activate") : "#top");
   updateNavigationHistory(initialHash, { replace: true });
   window.addEventListener("popstate", restoreNavigationRoute);
   window.addEventListener("scroll", () => {
@@ -9013,6 +9141,527 @@ async function handlePrintGuideImageSelect(file) {
   });
   applyBrandSettings();
   if (els.brandSettingsNote) els.brandSettingsNote.textContent = "Previewing print guide image. Save to publish it.";
+}
+
+async function hydrateDesktopState() {
+  if (!desktopProductMode) return false;
+  try {
+    const payload = await apiRequest("/api/desktop/state");
+    state.desktop.license = payload.license || null;
+    state.desktop.projects = Array.isArray(payload.projects) ? payload.projects : [];
+    state.account = desktopAccountFromLicense(state.desktop.license);
+    if (payload.recoveryMessage) showDesktopToast(payload.recoveryMessage);
+    return true;
+  } catch (error) {
+    state.desktop.license = null;
+    state.desktop.projects = [];
+    state.account = accountFromUser(null);
+    if (els.desktopActivationNote) els.desktopActivationNote.textContent = error.message || "Could not read local application data.";
+    return false;
+  }
+}
+
+function desktopAccountFromLicense(license) {
+  if (!license) return accountFromUser(null);
+  return {
+    email: "local@frame-lab.device",
+    firstName: "Local",
+    lastName: "User",
+    plan: validAccountPlan(license.plan) ? license.plan : "free",
+    role: "customer",
+    subscriptionMode: license.status === "lifetime" ? "license_lifetime" : "license_year",
+    subscriptionStatus: license.status === "lifetime" ? "lifetime" : license.status === "expired" ? "expired" : "paid_once",
+    planEndsAt: license.expiresAt || null,
+    measurements: sanitizeMeasurements({})
+  };
+}
+
+function desktopHasActiveLicense() {
+  const license = state.desktop.license;
+  if (!license || license.status === "expired") return false;
+  if (license.expiresAt && new Date(license.expiresAt) <= new Date()) return false;
+  return planRank[license.plan] > planRank.free;
+}
+
+function updateDesktopShell() {
+  if (!desktopProductMode) return;
+  const active = desktopHasActiveLicense();
+  if (els.desktopActivation) els.desktopActivation.hidden = active;
+  if (els.desktopHeader) els.desktopHeader.hidden = !active;
+  if (!active && els.desktopDashboard) els.desktopDashboard.hidden = true;
+  renderDesktopLicense();
+  renderDesktopProjects();
+}
+
+function showDesktopActivation(message = "") {
+  if (!desktopProductMode) return;
+  const expired = state.desktop.license?.status === "expired";
+  if (els.desktopActivationTitle) {
+    els.desktopActivationTitle.textContent = expired ? "Your Frame Lab access has expired" : "Enter your Frame Lab code";
+  }
+  if (els.desktopActivationDescription) {
+    els.desktopActivationDescription.textContent = expired
+      ? "Enter a different activation code to continue using Creator and your local projects. A code already used by this installation cannot be activated again."
+      : "Use the 12-digit code received with your purchase. It will be remembered by this installation.";
+  }
+  if (els.desktopActivationNote) {
+    els.desktopActivationNote.textContent = message;
+    els.desktopActivationNote.classList.remove("success");
+  }
+  if (els.desktopActivation) els.desktopActivation.hidden = false;
+  if (els.desktopHeader) els.desktopHeader.hidden = true;
+  if (els.desktopDashboard) els.desktopDashboard.hidden = true;
+  if (els.workspace) els.workspace.hidden = true;
+  if (els.designLab) els.designLab.hidden = true;
+  els.desktopActivationCode?.focus();
+}
+
+function renderDesktopLicense() {
+  if (!els.desktopPlanBadge) return;
+  const license = state.desktop.license;
+  if (!license) {
+    els.desktopPlanBadge.innerHTML = "<div><strong>No plan</strong><small>Activation required</small></div>";
+    return;
+  }
+  const expiry = license.status === "lifetime"
+    ? "Lifetime access"
+    : license.expiresAt
+      ? `Until ${new Date(license.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+      : "Local license";
+  els.desktopPlanBadge.innerHTML = `<div><strong>${escapeHtml(license.label || planLabel(license.plan))}</strong><small>${escapeHtml(expiry)}</small></div>`;
+}
+
+function renderDesktopProjects() {
+  if (!els.desktopProjectsGrid) return;
+  const projects = Array.isArray(state.desktop.projects) ? state.desktop.projects : [];
+  if (els.desktopProjectCount) els.desktopProjectCount.textContent = `${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
+  els.desktopProjectsGrid.hidden = projects.length === 0;
+  if (els.desktopEmptyProjects) els.desktopEmptyProjects.hidden = projects.length > 0;
+  els.desktopProjectsGrid.innerHTML = projects.map((project) => {
+    const thumbnail = project.thumbnail
+      ? `<img src="${escapeAttr(project.thumbnail)}" alt="${escapeAttr(project.name)} preview" />`
+      : '<span class="desktop-project-placeholder" aria-hidden="true"></span>';
+    return `
+      <article class="desktop-project-card" data-desktop-project-id="${escapeAttr(project.id)}">
+        <button class="desktop-project-preview" type="button" data-desktop-project-action="open" aria-label="Open ${escapeAttr(project.name)}">
+          ${thumbnail}
+        </button>
+        <div class="desktop-project-content">
+          <div class="desktop-project-title-row">
+            <h3>${escapeHtml(project.name || "Untitled frame")}</h3>
+            <time datetime="${escapeAttr(project.updatedAt || "")}">${escapeHtml(desktopProjectDate(project.updatedAt))}</time>
+          </div>
+          <p>${escapeHtml(project.description || "Frame Lab Creator project")}</p>
+          <div class="desktop-project-actions-row">
+            <button type="button" class="accent" data-desktop-project-action="open">Open</button>
+            <button type="button" data-desktop-project-action="duplicate">Duplicate</button>
+            <button type="button" class="desktop-project-more desktop-project-delete" data-desktop-project-action="delete" aria-label="Delete ${escapeAttr(project.name)}">×</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function desktopProjectDate(value) {
+  const date = new Date(value || 0);
+  if (Number.isNaN(date.getTime())) return "Local";
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return "Today";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+async function activateDesktopLicense() {
+  const code = normalizeLicenseCode(els.desktopActivationCode?.value);
+  if (code.length !== 12) {
+    els.desktopActivationNote.textContent = "Enter the complete 12-digit activation code.";
+    return;
+  }
+  els.desktopActivateButton.disabled = true;
+  els.desktopActivationNote.classList.remove("success");
+  els.desktopActivationNote.textContent = "Checking this code locally…";
+  try {
+    const payload = await apiRequest("/api/desktop/activate", {
+      method: "POST",
+      body: JSON.stringify({ code })
+    });
+    state.desktop.license = payload.license;
+    state.account = desktopAccountFromLicense(payload.license);
+    els.desktopActivationNote.textContent = payload.message || "Frame Lab activated.";
+    els.desktopActivationNote.classList.add("success");
+    if (els.desktopActivationCode) els.desktopActivationCode.value = "";
+    updateAccountUi();
+    updateDesktopShell();
+    setActiveSection("home");
+    updateNavigationHistory("#projects", { replace: true });
+    showDesktopToast("Frame Lab activated. Your workspace is ready.");
+  } catch (error) {
+    els.desktopActivationNote.textContent = error.message || "This code could not be activated.";
+  } finally {
+    els.desktopActivateButton.disabled = false;
+  }
+}
+
+async function withDesktopTransition(action) {
+  if (desktopTransitionPending) return false;
+  desktopTransitionPending = true;
+  try {
+    if (!(await flushDesktopProject())) return false;
+    await action();
+    return true;
+  } catch (error) {
+    showDesktopToast(error.message || "Could not complete this action. Your project is still open.");
+    return false;
+  } finally {
+    desktopTransitionPending = false;
+  }
+}
+
+function markDesktopProjectClean() {
+  clearTimeout(desktopProjectPersistTimer);
+  desktopRevision = 0;
+  desktopSavedRevision = 0;
+}
+
+async function flushDesktopProject() {
+  if (!desktopProductMode) return true;
+  clearTimeout(desktopProjectPersistTimer);
+  if (desktopSavePromise && !(await desktopSavePromise)) return false;
+  while (desktopRevision > desktopSavedRevision) {
+    if (!(await saveDesktopProject())) return false;
+  }
+  return true;
+}
+
+function startDesktopProject() {
+  return withDesktopTransition(startDesktopProjectNow);
+}
+
+function startDesktopProjectNow() {
+  if (!desktopHasActiveLicense()) {
+    showDesktopActivation("Activate Frame Lab before creating a project.");
+    return;
+  }
+  if (state.desktop.projects.length >= 500) {
+    showDesktopToast("Your library has reached 500 projects. Export or remove a project before creating another.");
+    return;
+  }
+  clearTimeout(desktopProjectPersistTimer);
+  markDesktopProjectClean();
+  state.desktop.activeProjectId = "";
+  resetDesignDraft();
+  state.designDraft.name = `Untitled frame ${state.desktop.projects.length + 1}`;
+  syncDesignFields();
+  setDesktopSaveState("Not saved", "");
+  navigateToView("design-lab");
+  setDesignNote("New local project ready. Name it and save when you are ready.");
+  scheduleDesktopProjectAutosave();
+}
+
+function normalizeDesktopProjectDraft(project) {
+  const source = project?.draft && typeof project.draft === "object" ? project.draft : {};
+  const base = createDefaultDesignDraft();
+  const params = { ...base.params, ...(source.params && typeof source.params === "object" ? source.params : {}) };
+  const construction = normalizeDesignConstruction(source.construction || base.construction);
+  return {
+    ...base,
+    ...structuredClone(source),
+    name: cleanText(project?.name || source.name, base.name, 120),
+    description: cleanText(project?.description || source.description, "", 260),
+    params,
+    style: normalizeDesignStyle(source.style || base.style),
+    sketch: normalizeDesignSketch(source.sketch || base.sketch),
+    templeSketch: normalizeDesignTempleSketch(source.templeSketch || base.templeSketch, construction),
+    features: normalizeDesignFeatures(source.features || base.features, params),
+    construction,
+    publicParameters: normalizeDesignPublicParameters(source.publicParameters || base.publicParameters),
+    sliderRanges: normalizeDesignSliderRanges(source.sliderRanges || base.sliderRanges),
+    step: ["front", "left-temple", "right-temple", "assembly"].includes(source.step) ? source.step : "front",
+    view: source.view === "3d" ? "3d" : "sketch",
+    code: String(source.code || ""),
+    manualCode: Boolean(source.manualCode)
+  };
+}
+
+async function openDesktopProject(projectId) {
+  return withDesktopTransition(() => openDesktopProjectNow(projectId));
+}
+
+async function openDesktopProjectNow(projectId) {
+  if (!projectId || !desktopHasActiveLicense()) return;
+  showLoader(true, "Opening project", "Loading the local Creator workspace…");
+  try {
+    const payload = await apiRequest(`/api/desktop/projects/${encodeURIComponent(projectId)}`);
+    const project = payload.project;
+    state.desktop.activeProjectId = project.id;
+    state.designDraft = normalizeDesktopProjectDraft(project);
+    resetDesignHistory();
+    designSketchSelectedIndex = 0;
+    designTempleSketchSelectedIndex = 0;
+    buildDesignControls();
+    switchDesignTab(state.designDraft.step || "front");
+    setDesignView(state.designDraft.view || "sketch");
+    navigateToView("design-lab");
+    renderDesignPreview({ fitView: true });
+    markDesktopProjectClean();
+    setDesktopSaveState("Saved locally", "saved");
+    setDesignNote(`Opened ${project.name}. Changes remain on this computer.`);
+  } catch (error) {
+    showDesktopToast(error.message || "Could not open this project.");
+  } finally {
+    showLoader(false);
+  }
+}
+
+function captureDesktopProjectThumbnail() {
+  const source = state.designDraft.view === "3d" && els.designCanvas && !els.designCanvas.classList.contains("design-view-hidden")
+    ? els.designCanvas
+    : els.designSketchCanvas;
+  if (!source?.width || !source?.height) return "";
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 360;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#090b0b";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
+    const width = source.width * scale;
+    const height = source.height * scale;
+    context.drawImage(source, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } catch {
+    return "";
+  }
+}
+
+async function saveDesktopProject(options = {}) {
+  if (!desktopProductMode || !desktopHasActiveLicense()) return null;
+  clearTimeout(desktopProjectPersistTimer);
+  if (desktopSavePromise) {
+    const saved = await desktopSavePromise;
+    if (!saved) return null;
+    return desktopRevision > desktopSavedRevision ? saveDesktopProject(options) : saved;
+  }
+  syncDesignDraftFromControlValues({ preserveManualCode: true });
+  const name = cleanText(state.designDraft.name, "Untitled frame", 120);
+  state.designDraft.name = name;
+  const currentSummary = state.desktop.projects.find((project) => project.id === state.desktop.activeProjectId);
+  const revision = desktopRevision;
+  const snapshot = {
+    id: state.desktop.activeProjectId || undefined,
+    name,
+    description: cleanText(state.designDraft.description, "", 260),
+    draft: structuredClone(state.designDraft),
+    thumbnail: options.skipThumbnail && currentSummary?.thumbnail ? currentSummary.thumbnail : captureDesktopProjectThumbnail(),
+    lastExportedAt: currentSummary?.lastExportedAt || null,
+    exportCount: currentSummary?.exportCount || 0
+  };
+  setDesktopSaveState("Saving…", "saving");
+  if (els.desktopSaveProject) els.desktopSaveProject.disabled = true;
+  desktopSavePromise = (async () => {
+    try {
+      const payload = await apiRequest("/api/desktop/projects", {
+        method: "POST",
+        body: JSON.stringify({ project: snapshot })
+      });
+      const project = payload.project;
+      state.desktop.activeProjectId = project.id;
+      state.desktop.projects = [project, ...state.desktop.projects.filter((item) => item.id !== project.id)]
+        .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
+      renderDesktopProjects();
+      desktopSavedRevision = revision;
+      setDesktopSaveState(desktopRevision > revision ? "Unsaved changes" : "Saved locally", desktopRevision > revision ? "" : "saved");
+      if (!options.silent) showDesktopToast(`${project.name} saved on this computer.`);
+      return project;
+    } catch (error) {
+      setDesktopSaveState("Save failed", "");
+      // Save progress stays out of the header, but failures must still be visible.
+      showDesktopToast(error.message || "Could not save this project.");
+      return null;
+    } finally {
+      if (els.desktopSaveProject) els.desktopSaveProject.disabled = false;
+    }
+  })();
+  try {
+    return await desktopSavePromise;
+  } finally {
+    desktopSavePromise = null;
+  }
+}
+
+function scheduleDesktopProjectAutosave() {
+  if (!desktopProductMode || !desktopHasActiveLicense() || !bootState.ready) return;
+  desktopRevision += 1;
+  clearTimeout(desktopProjectPersistTimer);
+  setDesktopSaveState("Unsaved changes", "");
+  desktopProjectPersistTimer = setTimeout(() => {
+    saveDesktopProject({ silent: true, skipThumbnail: true });
+  }, 1400);
+}
+
+async function duplicateDesktopProject(projectId = "") {
+  return withDesktopTransition(() => duplicateDesktopProjectNow(projectId));
+}
+
+async function duplicateDesktopProjectNow(projectId = "") {
+  if (!desktopHasActiveLicense()) return;
+  let sourceProject;
+  if (!projectId || projectId === state.desktop.activeProjectId) {
+    syncDesignDraftFromControlValues({ preserveManualCode: true });
+    sourceProject = {
+      name: state.designDraft.name,
+      description: state.designDraft.description,
+      draft: structuredClone(state.designDraft),
+      thumbnail: captureDesktopProjectThumbnail()
+    };
+  } else {
+    const payload = await apiRequest(`/api/desktop/projects/${encodeURIComponent(projectId)}`);
+    sourceProject = payload.project;
+  }
+  const copyName = cleanText(`${sourceProject.name || "Untitled frame"} copy`, "Frame copy", 120);
+  const copyDraft = normalizeDesktopProjectDraft({ ...sourceProject, name: copyName });
+  try {
+    const payload = await apiRequest("/api/desktop/projects", {
+      method: "POST",
+      body: JSON.stringify({ project: { ...sourceProject, id: undefined, name: copyName, draft: copyDraft } })
+    });
+    const project = payload.project;
+    state.desktop.projects = [project, ...state.desktop.projects.filter((item) => item.id !== project.id)];
+    renderDesktopProjects();
+    if (!projectId || projectId === state.desktop.activeProjectId) {
+      state.desktop.activeProjectId = project.id;
+      state.designDraft = normalizeDesktopProjectDraft(project);
+      buildDesignControls();
+      renderDesignPreview({ fitView: false });
+      markDesktopProjectClean();
+      setDesktopSaveState("Saved locally", "saved");
+    }
+    showDesktopToast(`${copyName} created.`);
+  } catch (error) {
+    showDesktopToast(error.message || "Could not duplicate this project.");
+  }
+}
+
+async function deleteDesktopProject(projectId) {
+  return withDesktopTransition(() => deleteDesktopProjectNow(projectId));
+}
+
+async function deleteDesktopProjectNow(projectId) {
+  const project = state.desktop.projects.find((item) => item.id === projectId);
+  if (!project) return;
+  if (!window.confirm(`Delete “${project.name}” from your library? A local backup will be kept before deletion.`)) return;
+  try {
+    await apiRequest(`/api/desktop/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
+    state.desktop.projects = state.desktop.projects.filter((item) => item.id !== projectId);
+    if (state.desktop.activeProjectId === projectId) {
+      state.desktop.activeProjectId = "";
+      markDesktopProjectClean();
+      goHome();
+    }
+    renderDesktopProjects();
+    showDesktopToast(`${project.name} deleted.`);
+  } catch (error) {
+    showDesktopToast(error.message || "Could not delete this project.");
+  }
+}
+
+async function exportDesktopProjectFile() {
+  if (!desktopHasActiveLicense()) return;
+  // A portable copy must remain possible even if the local library cannot save.
+  syncDesignDraftFromControlValues({ preserveManualCode: true });
+  const project = {
+    name: cleanText(state.designDraft.name, "Untitled frame", 120),
+    description: cleanText(state.designDraft.description, "", 260),
+    draft: structuredClone(state.designDraft),
+    thumbnail: captureDesktopProjectThumbnail()
+  };
+  const file = {
+    format: "frame-lab-project",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    project: { name: project.name, description: project.description, draft: project.draft, thumbnail: project.thumbnail }
+  };
+  downloadText(`${slugify(project.name) || "frame-lab-project"}.framelab`, JSON.stringify(file), "application/json");
+  setDesignNote("Project exported. Use Import project to open this file in Frame Lab on another computer.");
+}
+
+async function importDesktopProjectFile() {
+  const file = els.desktopImportFile?.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > 4_100_000) throw new Error("This project file is too large to import.");
+    const contents = JSON.parse(await file.text());
+    await withDesktopTransition(async () => {
+      const payload = await apiRequest("/api/desktop/projects/import", { method: "POST", body: JSON.stringify(contents) });
+      state.desktop.projects.unshift(payload.project);
+      await openDesktopProjectNow(payload.project.id);
+      renderDesktopProjects();
+      showDesktopToast("Project imported as a new copy.");
+    });
+  } catch (error) {
+    showDesktopToast(error instanceof SyntaxError ? "This is not a valid Frame Lab project file." : error.message);
+  } finally {
+    els.desktopImportFile.value = "";
+  }
+}
+
+async function showDesktopBackups() {
+  els.desktopBackupsNote.textContent = "";
+  try {
+    const payload = await apiRequest("/api/desktop/backups");
+    const backups = payload.backups.filter(backup => backup.projectCount > 0);
+    els.desktopBackupsList.innerHTML = backups.length ? backups.map(backup => `
+      <div class="desktop-backup-row"><div><strong>${escapeHtml(new Date(backup.savedAt).toLocaleString())}</strong><small>${backup.projectCount} projects · ${backup.id === "last-good" ? "Latest saved copy" : "Automatic snapshot"}</small></div><button type="button" data-restore-backup="${escapeAttr(backup.id)}">Restore projects</button></div>
+    `).join("") : "<p>No project backups yet. Backups are created automatically when you save.</p>";
+    els.desktopBackupsDialog.showModal();
+  } catch (error) {
+    showDesktopToast(error.message || "Could not read backups.");
+  }
+}
+
+async function restoreDesktopBackup(event) {
+  const button = event.target.closest("[data-restore-backup]");
+  if (!button || !window.confirm("Restore projects from this backup? Changed projects will be added as separate copies. Existing projects and your activation will not be replaced.")) return;
+  button.disabled = true;
+  try {
+    const payload = await apiRequest("/api/desktop/backups/restore", { method: "POST", body: JSON.stringify({ id: button.dataset.restoreBackup }) });
+    await hydrateDesktopState();
+    renderDesktopProjects();
+    els.desktopBackupsNote.textContent = payload.restored ? `${payload.restored} projects restored as copies.` : "These projects are already in your library.";
+  } catch (error) {
+    els.desktopBackupsNote.textContent = error.message || "Could not restore this backup. Nothing was replaced.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function handleDesktopProjectsClick(event) {
+  const actionButton = event.target.closest("[data-desktop-project-action]");
+  const card = actionButton?.closest("[data-desktop-project-id]");
+  if (!actionButton || !card) return;
+  const projectId = card.dataset.desktopProjectId;
+  const action = actionButton.dataset.desktopProjectAction;
+  if (action === "open") openDesktopProject(projectId);
+  if (action === "duplicate") duplicateDesktopProject(projectId);
+  if (action === "delete") deleteDesktopProject(projectId);
+}
+
+function setDesktopSaveState(message, mode = "") {
+  if (!els.desktopSaveState) return;
+  els.desktopSaveState.textContent = message;
+  els.desktopSaveState.classList.toggle("saving", mode === "saving");
+  els.desktopSaveState.classList.toggle("saved", mode === "saved");
+}
+
+function showDesktopToast(message) {
+  if (!els.desktopToast || !message) return;
+  clearTimeout(desktopToastTimer);
+  els.desktopToast.textContent = message;
+  els.desktopToast.hidden = false;
+  desktopToastTimer = setTimeout(() => {
+    els.desktopToast.hidden = true;
+  }, 6500);
 }
 
 function sessionToken() {
@@ -9095,6 +9744,7 @@ function modelAccessPlan(access) {
 }
 
 function hasCreatorAccess() {
+  if (desktopProductMode) return desktopHasActiveLicense();
   if (isDeveloper()) return true;
   const endsAt = state.account.planEndsAt ? new Date(state.account.planEndsAt) : null;
   if (endsAt && !Number.isNaN(endsAt.getTime()) && endsAt <= new Date()) return false;
@@ -9103,6 +9753,10 @@ function hasCreatorAccess() {
 
 function canOpenCreator(message = "Activate a Creator plan to open collections, use Creator and export production files.") {
   if (hasCreatorAccess()) return true;
+  if (desktopProductMode) {
+    showDesktopActivation(state.desktop.license?.status === "expired" ? "Your local license has expired. Enter a different code to continue." : "Activate Frame Lab to open Creator.");
+    return false;
+  }
   openPlansPanel(message);
   log(message);
   return false;
@@ -9142,6 +9796,10 @@ function accountLabel() {
 }
 
 function openPlansPanel(message = "") {
+  if (desktopProductMode) {
+    showDesktopActivation(message || "Activate Frame Lab to continue.");
+    return;
+  }
   if (els.plansContext) {
     els.plansContext.textContent = message;
     els.plansContext.hidden = !message;
@@ -10073,7 +10731,7 @@ function renderDeveloperCollectionList() {
     const components = normalizeModelComponents(model.components) || { front: [], temples: [], leftTemples: [], rightTemples: [], lenses: [] };
     const active = state.editingModelId === model.id;
     const thumbnail = model.thumbnail || makeAutoCollectionThumbnail(model.name, model.params || defaultParams, model.category);
-    const summary = model.design ? "Creator · parametric OpenSCAD" : [
+    const summary = model.design ? "Frame Lab project" : [
       `${components.front.length} front`,
       `${components.leftTemples.length} left temple`,
       `${components.rightTemples.length} right temple`,
@@ -11532,6 +12190,13 @@ async function generate3mf() {
 }
 
 async function ensureDownloadAllowed(model) {
+  if (desktopProductMode) {
+    if (!desktopHasActiveLicense()) {
+      showDesktopActivation(state.desktop.license?.status === "expired" ? "Your local license has expired." : "Activate Frame Lab before exporting production files.");
+      return false;
+    }
+    return true;
+  }
   if (model && !canAccessModel(model)) {
     openPlansPanel("Activate a Creator plan to download 3MF production files.");
     log(`${model.name}: ${t("lockedModel")}.`);
@@ -11683,6 +12348,7 @@ function currentConfigurationSnapshot() {
 }
 
 async function recordDownload(fileName, mesh) {
+  if (desktopProductMode) return desktopHasActiveLicense();
   if (state.account.role === "visitor" || !sessionToken()) return false;
   const model = currentModelRecord();
   const payload = {
@@ -11716,6 +12382,15 @@ async function recordDownload(fileName, mesh) {
 }
 
 async function recordDesignDownload(fileName, mesh) {
+  if (desktopProductMode) {
+    const project = state.desktop.projects.find((item) => item.id === state.desktop.activeProjectId);
+    if (project) {
+      project.lastExportedAt = new Date().toISOString();
+      project.exportCount = Math.max(0, Number(project.exportCount) || 0) + 1;
+      await saveDesktopProject({ silent: true, skipThumbnail: true });
+    }
+    return desktopHasActiveLicense();
+  }
   if (state.account.role === "visitor" || !sessionToken()) return false;
   const draft = designDefinitionFromDraft();
   const meshCounts = meshExportCounts(mesh);
@@ -11796,7 +12471,7 @@ function resetParams() {
 
 function exportScad() {
   downloadText(`${slugify(state.modelName)}.scad`, generateScadSource(), "application/scad");
-  log("Exported plik OpenSCAD.");
+  log("Exported design source.");
 }
 
 function exportJson() {
@@ -11806,7 +12481,7 @@ function exportJson() {
 
 async function copyScad() {
   await navigator.clipboard.writeText(generateScadSource());
-  log("Copied OpenSCAD source to clipboard.");
+  log("Copied design source to clipboard.");
 }
 
 function loadSettings() {

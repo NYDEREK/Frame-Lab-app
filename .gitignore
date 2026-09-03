@@ -1,6 +1,12 @@
 .DS_Store
 node_modules/
 dist/
+dist-signed/
+.env
+.env.*
+*.p12
+*.pfx
+*.p8
 out/
 *.log
 web/data/
