@@ -10428,6 +10428,7 @@ function licenseCertificateBenefits(plan = {}, type = {}) {
 function makeLicenseCertificatePdfBlob({ code, type, plan, reusable }) {
   const commands = [];
   const page = { width: 595.28, height: 419.53 };
+  const downloadUrl = "https://nyder-crowdfundinghub.com/";
   const accent = state.brandSettings.accentColor || defaultAccentColor;
   const cream = "#f4e5c7";
   const muted = "#aaa29a";
@@ -10438,7 +10439,7 @@ function makeLicenseCertificatePdfBlob({ code, type, plan, reusable }) {
 
   pdfRect(commands, page, 0, 0, page.width, page.height, background);
   pdfRect(commands, page, 0, 0, page.width, 12, accent);
-  pdfRect(commands, page, 42, 42, 511, 335, surface, line);
+  pdfRect(commands, page, 42, 42, 511, 351, surface, line);
   pdfRect(commands, page, 58, 218, 479, 94, soft, accent);
 
   pdfCenteredText(commands, page, "FRAME LAB", 58, 80, 479, 11, "F2", accent);
@@ -10446,22 +10447,42 @@ function makeLicenseCertificatePdfBlob({ code, type, plan, reusable }) {
   pdfCenteredText(commands, page, "Here is your activation code.", 58, 158, 479, 12, "F1", muted);
   pdfCenteredText(commands, page, plan.name || type.label, 58, 194, 479, 11, "F2", cream);
   pdfCenteredText(commands, page, code, 58, 276, 479, 32, "F3", cream);
-  pdfCenteredText(commands, page, "Enter this code in the Frame Lab app.", 58, 344, 479, 10, "F1", muted);
+  pdfCenteredText(commands, page, "Enter this code in the Frame Lab app.", 58, 333, 479, 10, "F1", muted);
+  pdfCenteredText(commands, page, "You can download your software on this page.", 58, 355, 479, 9, "F1", muted);
+  pdfCenteredText(commands, page, downloadUrl, 58, 379, 479, 10, "F2", accent);
 
-  return buildSimplePdf(commands.join("\n"), page);
+  const linkWidth = pdfApproxTextWidth(downloadUrl, 10, "F2");
+  const linkX = 58 + Math.max(0, (479 - linkWidth) / 2);
+
+  return buildSimplePdf(commands.join("\n"), page, [{
+    x: linkX - 4,
+    y: 365,
+    width: linkWidth + 8,
+    height: 20,
+    url: downloadUrl
+  }]);
 }
 
-function buildSimplePdf(contentStream, page) {
+function buildSimplePdf(contentStream, page, links = []) {
   const encoder = new TextEncoder();
   const streamLength = encoder.encode(contentStream).length;
+  const annotationRefs = links.map((_, index) => `${index + 8} 0 R`).join(" ");
+  const annotations = annotationRefs ? ` /Annots [${annotationRefs}]` : "";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfNumber(page.width)} ${pdfNumber(page.height)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R /F3 6 0 R >> >> /Contents 7 0 R >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfNumber(page.width)} ${pdfNumber(page.height)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R /F3 6 0 R >> >> /Contents 7 0 R${annotations} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>",
-    `<< /Length ${streamLength} >>\nstream\n${contentStream}\nendstream`
+    `<< /Length ${streamLength} >>\nstream\n${contentStream}\nendstream`,
+    ...links.map((link) => {
+      const x1 = link.x;
+      const y1 = page.height - link.y - link.height;
+      const x2 = link.x + link.width;
+      const y2 = page.height - link.y;
+      return `<< /Type /Annot /Subtype /Link /Rect [${pdfNumber(x1)} ${pdfNumber(y1)} ${pdfNumber(x2)} ${pdfNumber(y2)}] /Border [0 0 0] /A << /S /URI /URI (${pdfEscapeText(link.url)}) >> >>`;
+    })
   ];
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
