@@ -299,6 +299,9 @@ app.whenReady().then(async () => {
       assert.match(source, /FRAME LAB/);
       assert.match(source, /Thanks for choosing Frame Lab\./);
       assert.match(source, /Here is your activation code\./);
+      assert.match(source, /You can download your software on this page\./);
+      assert.match(source, /https:\/\/nyder-crowdfundinghub\.com\//);
+      assert.match(source, /\/Subtype \/Link/);
       const forbiddenLegacyBrand = ['Frame', 'Up'].join('');
       assert.equal(source.toLowerCase().includes(forbiddenLegacyBrand.toLowerCase()), false, 'Legacy incorrect branding must not appear in activation PDFs.');
       assert.ok(developerUi.codes.some(code => source.includes(code)), `Activation code is missing from ${type} PDF.`);
