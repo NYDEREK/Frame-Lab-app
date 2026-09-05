@@ -68,6 +68,7 @@
           <div><strong>Frame Lab</strong><small>Eyewear Studio</small></div>
         </button>
         <div class="desktop-header-actions">
+          <button id="desktopDeveloperTab" class="desktop-developer-tab" type="button" hidden>Developer</button>
           <div id="desktopPlanBadge" class="desktop-plan-badge">
             <div><strong>Plan</strong><small>Local license</small></div>
           </div>
@@ -97,6 +98,21 @@
             <h2>Create your first frame</h2>
             <p>Every project is saved locally and remains available offline.</p>
           </div>
+        </section>
+      </main>
+
+      <main id="desktopDeveloperPanel" class="desktop-developer-panel" hidden>
+        <section class="desktop-developer-shell">
+          <header class="desktop-developer-head">
+            <div>
+              <p class="desktop-kicker">Owner tools</p>
+              <h1>Activation codes</h1>
+              <p>Reusable customer codes for every available Frame Lab tier.</p>
+            </div>
+            <button id="desktopDeveloperBack" type="button">Back to Projects</button>
+          </header>
+          <div id="desktopDeveloperCodeList" class="desktop-developer-code-list" aria-label="Customer activation codes"></div>
+          <p id="desktopDeveloperNote" class="desktop-developer-note" role="status"></p>
         </section>
       </main>
 

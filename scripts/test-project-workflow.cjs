@@ -246,16 +246,76 @@ app.whenReady().then(async () => {
     `);
     assert.equal(await evaluate(`return window.frameLabDesktopSession.hasUnsavedChanges();`), false);
     await checkCreatorLayout();
-    if (process.env.FRAME_LAB_QA_DIRECTORY) {
-      const screenshots = process.env.FRAME_LAB_QA_DIRECTORY;
+
+    const screenshots = process.env.FRAME_LAB_QA_DIRECTORY || '';
+    if (screenshots) {
       mkdirSync(screenshots, { recursive: true });
       writeFileSync(join(screenshots, 'creator.png'), (await window.webContents.capturePage()).toPNG());
-      await evaluate(`document.querySelector('#desktopBackToProjects').click(); await waitFor(() => !document.querySelector('#desktopDashboard').hidden);`);
+    }
+
+    assert.equal(await evaluate(`return document.querySelector('#desktopDeveloperTab').hidden;`), true, 'Customer licenses must not show owner tools.');
+    const developerLicense = await evaluate(`
+      const response = await fetch('/api/desktop/activate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: '3175-6048-2541' })
+      });
+      if (!response.ok) throw new Error((await response.json()).error || 'Developer activation failed');
+      return (await response.json()).license;
+    `);
+    assert.equal(developerLicense.role, 'developer');
+    assert.equal(developerLicense.label, 'Developer');
+    assert.equal(developerLicense.status, 'lifetime');
+    await window.loadURL(started.origin);
+    const developerUi = await evaluate(`
+      await waitFor(() => window.frameLabBoot?.ready && !document.querySelector('#desktopDeveloperTab').hidden);
+      document.querySelector('#desktopDeveloperTab').click();
+      await waitFor(() => !document.querySelector('#desktopDeveloperPanel').hidden && document.querySelectorAll('.desktop-developer-code-card').length === 6);
+      return {
+        plan: document.querySelector('#desktopPlanBadge strong').textContent.trim(),
+        detail: document.querySelector('#desktopPlanBadge small').textContent.trim(),
+        count: document.querySelectorAll('.desktop-developer-code-card').length,
+        codes: [...document.querySelectorAll('.desktop-developer-code-card > code')].map(element => element.textContent.trim()),
+        pdfButtons: document.querySelectorAll('#desktopDeveloperCodeList [data-license-certificate]').length,
+        copyButtons: document.querySelectorAll('#desktopDeveloperCodeList [data-desktop-copy-code]').length
+      };
+    `);
+    assert.deepEqual({ plan: developerUi.plan, detail: developerUi.detail }, { plan: 'Developer', detail: 'Owner tools' });
+    assert.equal(developerUi.count, 6);
+    assert.equal(developerUi.pdfButtons, 6);
+    assert.equal(developerUi.copyButtons, 6);
+    assert.equal(developerUi.codes.includes('3175-6048-2541'), false, 'Developer code must not appear among customer codes.');
+    assert.match(await evaluate(`
+      document.querySelector('[data-desktop-copy-code]').click();
+      await waitFor(() => document.querySelector('#desktopDeveloperNote').textContent.trim());
+      return document.querySelector('#desktopDeveloperNote').textContent;
+    `), /copied\./i, 'Copy code must write to the local clipboard.');
+
+    const customerCodeTypes = ['personal_year', 'commercial_year', 'personal_lifetime', 'commercial_lifetime', 'supporter', 'ultra_support'];
+    const pdfPaths = [];
+    for (const type of customerCodeTypes) {
+      const pdfPath = await download(`desktopLicensePdf-${type}`);
+      const pdf = readFileSync(pdfPath);
+      const source = pdf.toString('latin1');
+      assert.equal(pdf.subarray(0, 8).toString(), '%PDF-1.4');
+      assert.match(source, /FRAME LAB/);
+      assert.match(source, /Thanks for choosing Frame Lab\./);
+      assert.match(source, /Here is your activation code\./);
+      const forbiddenLegacyBrand = ['Frame', 'Up'].join('');
+      assert.equal(source.toLowerCase().includes(forbiddenLegacyBrand.toLowerCase()), false, 'Legacy incorrect branding must not appear in activation PDFs.');
+      assert.ok(developerUi.codes.some(code => source.includes(code)), `Activation code is missing from ${type} PDF.`);
+      pdfPaths.push(pdfPath);
+    }
+
+    if (process.env.FRAME_LAB_QA_DIRECTORY) {
+      const pdfQaDirectory = join(screenshots, 'pdfs');
+      mkdirSync(pdfQaDirectory, { recursive: true });
+      pdfPaths.forEach(path => copyFileSync(path, join(pdfQaDirectory, path.split('/').pop())));
+      writeFileSync(join(screenshots, 'developer.png'), (await window.webContents.capturePage()).toPNG());
+      await evaluate(`document.querySelector('#desktopDeveloperBack').click(); await waitFor(() => !document.querySelector('#desktopDashboard').hidden);`);
       writeFileSync(join(screenshots, 'projects.png'), (await window.webContents.capturePage()).toPNG());
       await evaluate(`window.frameLabDesktopSession.openBackups(); await waitFor(() => document.querySelector('#desktopBackupsDialog').open);`);
       writeFileSync(join(screenshots, 'backups.png'), (await window.webContents.capturePage()).toPNG());
     }
-    console.log('FRAME_LAB_PROJECT_WORKFLOW_OK quick-switch in-flight-edits import-export-roundtrip 3mf-export failed-save-stays-open close-save-discard-cancel reopen-from-disk scrolling-library two-project-actions creator-backup-nav responsive-toolbar clean-header app-icon no-fit-warning-card clean-canvas');
+    console.log('FRAME_LAB_PROJECT_WORKFLOW_OK quick-switch in-flight-edits import-export-roundtrip 3mf-export failed-save-stays-open close-save-discard-cancel reopen-from-disk scrolling-library two-project-actions creator-backup-nav responsive-toolbar clean-header app-icon no-fit-warning-card clean-canvas developer-owner-tools six-activation-pdfs');
   } catch (error) {
     failed = true;
     console.error(error.stack || error);

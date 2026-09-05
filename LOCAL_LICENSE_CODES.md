@@ -12,3 +12,11 @@ These reusable codes are validated only inside the installed application. A code
 | Ultra Support | `9364-1558-2706` | Lifetime top-tier Creator access |
 
 Activation history, the current license and all projects are stored in the application data directory on the user's computer. No account, email address or network connection is required.
+
+## Developer owner access
+
+Developer access is not a customer tier and is never shown in the customer code list or included in customer PDFs.
+
+| Access | Code | Result |
+| --- | --- | --- |
+| Developer | `3175-6048-2541` | Unlocks all Creator functions and the local owner-only code panel |

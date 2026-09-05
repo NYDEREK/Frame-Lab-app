@@ -103,6 +103,25 @@ try {
   const projectAfterExpiry = await fetch(`${started.origin}/api/desktop/projects/${projectId}`);
   assert.equal(projectAfterExpiry.status, 403);
 
+  const codesBeforeDeveloper = await fetch(`${started.origin}/api/desktop/developer/codes`);
+  assert.equal(codesBeforeDeveloper.status, 403);
+
+  const developerActivation = await postJson(started.origin, "/api/desktop/activate", { code: "3175-6048-2541" });
+  assert.equal(developerActivation.response.status, 200);
+  assert.equal(developerActivation.payload.license.label, "Developer");
+  assert.equal(developerActivation.payload.license.role, "developer");
+  assert.equal(developerActivation.payload.license.plan, "studio");
+  assert.equal(developerActivation.payload.license.status, "lifetime");
+
+  const developerCodesResponse = await fetch(`${started.origin}/api/desktop/developer/codes`);
+  assert.equal(developerCodesResponse.status, 200);
+  const developerCodes = (await developerCodesResponse.json()).codes;
+  assert.equal(developerCodes.length, 6);
+  assert.equal(developerCodes.some(item => item.code === "3175-6048-2541"), false, "Developer access must not be listed as a customer tier.");
+
+  const reusedDeveloperCode = await postJson(started.origin, "/api/desktop/activate", { code: "3175-6048-2541" });
+  assert.equal(reusedDeveloperCode.response.status, 409);
+
   const oauthResponse = await fetch(`${started.origin}/api/auth/oauth/google`);
   assert.equal(oauthResponse.status, 404);
 

@@ -714,6 +714,7 @@ const state = {
   desktop: {
     license: null,
     projects: [],
+    developerCodes: [],
     activeProjectId: ""
   },
   system: {
@@ -739,6 +740,11 @@ const els = {
   desktopActivationNote: document.querySelector("#desktopActivationNote"),
   desktopHeader: document.querySelector("#desktopHeader"),
   desktopBrandHome: document.querySelector("#desktopBrandHome"),
+  desktopDeveloperTab: document.querySelector("#desktopDeveloperTab"),
+  desktopDeveloperPanel: document.querySelector("#desktopDeveloperPanel"),
+  desktopDeveloperBack: document.querySelector("#desktopDeveloperBack"),
+  desktopDeveloperCodeList: document.querySelector("#desktopDeveloperCodeList"),
+  desktopDeveloperNote: document.querySelector("#desktopDeveloperNote"),
   desktopHeroCreate: document.querySelector("#desktopHeroCreate"),
   desktopDashboard: document.querySelector("#desktopDashboard"),
   desktopProjectsGrid: document.querySelector("#desktopProjectsGrid"),
@@ -4615,6 +4621,15 @@ function bindUi() {
   };
   els.desktopBrandHome?.addEventListener("click", openProjects);
   els.desktopBackToProjects?.addEventListener("click", openProjects);
+  els.desktopDeveloperBack?.addEventListener("click", openProjects);
+  els.desktopDeveloperTab?.addEventListener("click", async () => {
+    if (!desktopIsDeveloper()) return;
+    await withDesktopTransition(async () => {
+      navigateToView("developer");
+      await loadDesktopDeveloperCodes();
+    });
+  });
+  els.desktopDeveloperCodeList?.addEventListener("click", handleDesktopDeveloperCodeClick);
   els.desktopHeroCreate?.addEventListener("click", startDesktopProject);
   els.desktopSaveProject?.addEventListener("click", () => saveDesktopProject());
   els.desktopDuplicateProject?.addEventListener("click", () => duplicateDesktopProject());
@@ -8876,10 +8891,15 @@ function scheduleModelPersist() {
 
 function setActiveSection(section) {
   if (desktopProductMode) {
-    const activeSection = section === "design-lab" || section === "configurator" ? section : "home";
+    const activeSection = section === "design-lab" || section === "configurator"
+      ? section
+      : section === "developer" && desktopIsDeveloper()
+        ? "developer"
+        : "home";
     const showEditor = activeSection === "configurator";
     const showDesignLab = activeSection === "design-lab";
     const showDashboard = activeSection === "home" && desktopHasActiveLicense();
+    const showDeveloper = activeSection === "developer" && desktopIsDeveloper();
     els.homePage.hidden = true;
     els.workspace.hidden = !showEditor;
     els.designLab.hidden = !showDesignLab;
@@ -8887,6 +8907,8 @@ function setActiveSection(section) {
     els.collectionEditorPanel.hidden = true;
     els.licensePanel.hidden = true;
     if (els.desktopDashboard) els.desktopDashboard.hidden = !showDashboard;
+    if (els.desktopDeveloperPanel) els.desktopDeveloperPanel.hidden = !showDeveloper;
+    if (els.desktopDeveloperTab) els.desktopDeveloperTab.classList.toggle("active", showDeveloper);
     if (els.desktopHeader) els.desktopHeader.hidden = !desktopHasActiveLicense();
     if (showEditor) {
       resize();
@@ -8959,7 +8981,13 @@ function setActiveHomeLink(selector) {
 
 function routeForView(section) {
   if (desktopProductMode) {
-    return section === "design-lab" ? "#creator" : section === "configurator" ? "#configurator" : "#projects";
+    return section === "design-lab"
+      ? "#creator"
+      : section === "configurator"
+        ? "#configurator"
+        : section === "developer"
+          ? "#developer"
+          : "#projects";
   }
   return {
     configurator: "#configurator",
@@ -9045,6 +9073,10 @@ function restoreNavigationRoute() {
       return;
     }
     if (window.location.hash === "#creator") setActiveSection("design-lab");
+    else if (window.location.hash === "#developer" && desktopIsDeveloper()) {
+      setActiveSection("developer");
+      void loadDesktopDeveloperCodes({ silent: true });
+    }
     else {
       setActiveSection("home");
       if (window.location.hash !== "#projects") updateNavigationHistory("#projects", { replace: true });
@@ -9149,12 +9181,14 @@ async function hydrateDesktopState() {
     const payload = await apiRequest("/api/desktop/state");
     state.desktop.license = payload.license || null;
     state.desktop.projects = Array.isArray(payload.projects) ? payload.projects : [];
+    state.desktop.developerCodes = [];
     state.account = desktopAccountFromLicense(state.desktop.license);
     if (payload.recoveryMessage) showDesktopToast(payload.recoveryMessage);
     return true;
   } catch (error) {
     state.desktop.license = null;
     state.desktop.projects = [];
+    state.desktop.developerCodes = [];
     state.account = accountFromUser(null);
     if (els.desktopActivationNote) els.desktopActivationNote.textContent = error.message || "Could not read local application data.";
     return false;
@@ -9168,12 +9202,16 @@ function desktopAccountFromLicense(license) {
     firstName: "Local",
     lastName: "User",
     plan: validAccountPlan(license.plan) ? license.plan : "free",
-    role: "customer",
+    role: license.role === "developer" ? "developer" : "customer",
     subscriptionMode: license.status === "lifetime" ? "license_lifetime" : "license_year",
     subscriptionStatus: license.status === "lifetime" ? "lifetime" : license.status === "expired" ? "expired" : "paid_once",
     planEndsAt: license.expiresAt || null,
     measurements: sanitizeMeasurements({})
   };
+}
+
+function desktopIsDeveloper() {
+  return desktopProductMode && state.desktop.license?.role === "developer" && isDeveloper();
 }
 
 function desktopHasActiveLicense() {
@@ -9188,6 +9226,8 @@ function updateDesktopShell() {
   const active = desktopHasActiveLicense();
   if (els.desktopActivation) els.desktopActivation.hidden = active;
   if (els.desktopHeader) els.desktopHeader.hidden = !active;
+  if (els.desktopDeveloperTab) els.desktopDeveloperTab.hidden = !active || !desktopIsDeveloper();
+  if (!desktopIsDeveloper() && els.desktopDeveloperPanel) els.desktopDeveloperPanel.hidden = true;
   if (!active && els.desktopDashboard) els.desktopDashboard.hidden = true;
   renderDesktopLicense();
   renderDesktopProjects();
@@ -9211,6 +9251,7 @@ function showDesktopActivation(message = "") {
   if (els.desktopActivation) els.desktopActivation.hidden = false;
   if (els.desktopHeader) els.desktopHeader.hidden = true;
   if (els.desktopDashboard) els.desktopDashboard.hidden = true;
+  if (els.desktopDeveloperPanel) els.desktopDeveloperPanel.hidden = true;
   if (els.workspace) els.workspace.hidden = true;
   if (els.designLab) els.designLab.hidden = true;
   els.desktopActivationCode?.focus();
@@ -9223,12 +9264,108 @@ function renderDesktopLicense() {
     els.desktopPlanBadge.innerHTML = "<div><strong>No plan</strong><small>Activation required</small></div>";
     return;
   }
-  const expiry = license.status === "lifetime"
+  const expiry = license.role === "developer"
+    ? "Owner tools"
+    : license.status === "lifetime"
     ? "Lifetime access"
     : license.expiresAt
       ? `Until ${new Date(license.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
       : "Local license";
   els.desktopPlanBadge.innerHTML = `<div><strong>${escapeHtml(license.label || planLabel(license.plan))}</strong><small>${escapeHtml(expiry)}</small></div>`;
+}
+
+async function loadDesktopDeveloperCodes(options = {}) {
+  if (!desktopIsDeveloper()) {
+    state.desktop.developerCodes = [];
+    renderDesktopDeveloperCodes();
+    return false;
+  }
+  try {
+    const payload = await apiRequest("/api/desktop/developer/codes");
+    state.desktop.developerCodes = Array.isArray(payload.codes) ? payload.codes : [];
+    renderDesktopDeveloperCodes();
+    if (els.desktopDeveloperNote) els.desktopDeveloperNote.textContent = "";
+    return true;
+  } catch (error) {
+    state.desktop.developerCodes = [];
+    renderDesktopDeveloperCodes();
+    if (!options.silent && els.desktopDeveloperNote) {
+      els.desktopDeveloperNote.textContent = error.message || "Could not load activation codes.";
+    }
+    return false;
+  }
+}
+
+function renderDesktopDeveloperCodes() {
+  if (!els.desktopDeveloperCodeList) return;
+  if (!desktopIsDeveloper()) {
+    els.desktopDeveloperCodeList.innerHTML = "";
+    return;
+  }
+  const codes = state.desktop.developerCodes;
+  if (!codes.length) {
+    els.desktopDeveloperCodeList.innerHTML = `<div class="download-empty"><strong>Loading activation codes...</strong></div>`;
+    return;
+  }
+  els.desktopDeveloperCodeList.innerHTML = codes.map((item) => {
+    const type = licenseCodeTypes[item.type] || licenseCodeTypes.ultra_support;
+    return `
+      <article class="desktop-developer-code-card">
+        <header>
+          <div>
+            <p class="desktop-kicker">${escapeHtml(licenseDurationLabel(type.duration))}</p>
+            <h2>${escapeHtml(type.label)}</h2>
+          </div>
+          <small>${escapeHtml(licenseAccessLabel(type))}</small>
+        </header>
+        <code>${escapeHtml(item.code)}</code>
+        <div class="desktop-developer-code-actions">
+          <button type="button" data-desktop-copy-code="${escapeAttr(item.code)}">Copy code</button>
+          <button
+            id="desktopLicensePdf-${escapeAttr(item.type)}"
+            type="button"
+            class="accent"
+            data-license-certificate
+            data-license-code="${escapeAttr(item.code)}"
+            data-license-type="${escapeAttr(item.type)}"
+            data-license-reusable="true"
+          >Download PDF</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function handleDesktopDeveloperCodeClick(event) {
+  const copyButton = event.target.closest("[data-desktop-copy-code]");
+  if (copyButton) {
+    const code = formatLicenseCode(copyButton.dataset.desktopCopyCode);
+    try {
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(code);
+        copied = true;
+      } catch {
+        const temporary = document.createElement("textarea");
+        temporary.value = code;
+        temporary.setAttribute("readonly", "");
+        temporary.style.position = "fixed";
+        temporary.style.opacity = "0";
+        document.body.append(temporary);
+        temporary.select();
+        copied = document.execCommand("copy");
+        temporary.remove();
+      }
+      if (!copied) throw new Error("Clipboard is unavailable.");
+      if (els.desktopDeveloperNote) els.desktopDeveloperNote.textContent = `${code} copied.`;
+    } catch {
+      if (els.desktopDeveloperNote) els.desktopDeveloperNote.textContent = `Copy this code: ${code}`;
+    }
+    return;
+  }
+  const pdfButton = event.target.closest("[data-license-certificate]");
+  if (!pdfButton) return;
+  downloadLicenseCertificate(pdfButton.dataset.licenseCode, pdfButton.dataset.licenseType, { reusable: true });
 }
 
 function renderDesktopProjects() {
@@ -10246,10 +10383,13 @@ function downloadLicenseCertificate(codeValue, typeKey, options = {}) {
   const type = licenseCodeTypes[typeKey] || licenseCodeTypes.commercial_year;
   const plan = licenseCertificatePlanContent(typeKey, type);
   const blob = makeLicenseCertificatePdfBlob({ code, type, plan, reusable: options.reusable === true });
-  const fileName = `${slugify(`${plan.name || type.label}-${normalizeLicenseCode(code)}`)}-certificate.pdf`;
+  const fileName = `${slugify(`${plan.name || type.label}-${normalizeLicenseCode(code)}`)}-activation-code.pdf`;
   downloadBlob(fileName, blob);
   if (els.licenseAdminNote) {
-    els.licenseAdminNote.textContent = `PDF certificate downloaded for ${plan.name || type.label}.`;
+    els.licenseAdminNote.textContent = `Activation PDF downloaded for ${plan.name || type.label}.`;
+  }
+  if (els.desktopDeveloperNote) {
+    els.desktopDeveloperNote.textContent = `Activation PDF downloaded for ${plan.name || type.label}.`;
   }
 }
 
@@ -10287,7 +10427,7 @@ function licenseCertificateBenefits(plan = {}, type = {}) {
 
 function makeLicenseCertificatePdfBlob({ code, type, plan, reusable }) {
   const commands = [];
-  const page = { width: 595.28, height: 841.89 };
+  const page = { width: 595.28, height: 419.53 };
   const accent = state.brandSettings.accentColor || defaultAccentColor;
   const cream = "#f4e5c7";
   const muted = "#aaa29a";
@@ -10295,35 +10435,18 @@ function makeLicenseCertificatePdfBlob({ code, type, plan, reusable }) {
   const surface = "#1a1a18";
   const soft = "#2b2118";
   const line = "#3a332d";
-  const benefits = licenseCertificateBenefits(plan, type);
 
   pdfRect(commands, page, 0, 0, page.width, page.height, background);
-  pdfRect(commands, page, 0, 0, page.width, 18, accent);
-  pdfRect(commands, page, 48, 58, 5, 118, accent);
-  pdfRect(commands, page, 72, 600, 452, 1, line);
-  pdfRect(commands, page, 44, 255, 507, 170, surface, line);
-  pdfRect(commands, page, 58, 269, 479, 142, soft, accent);
-  pdfRect(commands, page, 48, 702, 499, 72, surface, line);
+  pdfRect(commands, page, 0, 0, page.width, 12, accent);
+  pdfRect(commands, page, 42, 42, 511, 335, surface, line);
+  pdfRect(commands, page, 58, 218, 479, 94, soft, accent);
 
-  pdfText(commands, page, "Frame Lab", 72, 82, 24, "F2", cream);
-  pdfText(commands, page, "Creator Access Certificate", 72, 112, 36, "F2", cream);
-  pdfText(commands, page, "Thank you for supporting the Frame Lab project.", 72, 152, 14, "F2", accent);
-  pdfWrappedText(commands, page, "Your contribution helps develop configurable 3D printed eyewear, cleaner exports and better production tooling for the maker community.", 72, 178, 425, 11, "F1", muted, 15);
-
-  pdfText(commands, page, "TIER", 72, 228, 10, "F2", muted);
-  pdfText(commands, page, plan.name || type.label, 72, 249, 20, "F2", cream);
-
-  pdfCenteredText(commands, page, "ACTIVATION CODE", 58, 315, 479, 10, "F2", muted);
-  pdfCenteredText(commands, page, code, 58, 369, 479, 36, "F3", cream);
-  pdfCenteredText(commands, page, "Copy this code into Frame Lab to activate the plan.", 44, 444, 507, 10, "F1", muted);
-
-  pdfText(commands, page, "Included", 72, 488, 18, "F2", cream);
-  pdfBulletList(commands, page, benefits, 76, 520, 430, accent, muted);
-
-  pdfText(commands, page, "Frame Lab note", 72, 645, 12, "F2", cream);
-  pdfWrappedText(commands, page, pdfSafeText(plan.description || "Creator access activated by code."), 72, 668, 430, 11, "F1", muted, 15);
-
-  pdfCenteredText(commands, page, "framelab.com.pl", 48, 742, 499, 14, "F2", accent);
+  pdfCenteredText(commands, page, "FRAME LAB", 58, 80, 479, 11, "F2", accent);
+  pdfCenteredText(commands, page, "Thanks for choosing Frame Lab.", 58, 128, 479, 28, "F2", cream);
+  pdfCenteredText(commands, page, "Here is your activation code.", 58, 158, 479, 12, "F1", muted);
+  pdfCenteredText(commands, page, plan.name || type.label, 58, 194, 479, 11, "F2", cream);
+  pdfCenteredText(commands, page, code, 58, 276, 479, 32, "F3", cream);
+  pdfCenteredText(commands, page, "Enter this code in the Frame Lab app.", 58, 344, 479, 10, "F1", muted);
 
   return buildSimplePdf(commands.join("\n"), page);
 }

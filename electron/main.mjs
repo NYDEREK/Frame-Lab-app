@@ -144,6 +144,7 @@ async function runSmokeCheck(window) {
           projectSavePresent: Boolean(document.querySelector("#desktopSaveProject")),
           brandIconLoaded: document.querySelector("#desktopBrandHome img")?.naturalWidth > 0,
           headerSimplified: !document.querySelector("#desktopHeader #desktopSaveState") && !document.querySelector("#desktopPlanBadge > span") && !document.querySelector(".design-stage-header"),
+          ownerToolsHiddenForCustomer: document.querySelector("#desktopDeveloperTab").hidden && document.querySelector("#desktopDeveloperPanel").hidden,
           marketingHomeHidden: getComputedStyle(document.querySelector("#homePage")).display === "none",
           activationCompleted: localState.license?.plan === "basic",
           projectSaved: localState.projects?.some((project) => project.name === "Smoke test frame"),
@@ -161,6 +162,7 @@ async function runSmokeCheck(window) {
       || !result.projectSavePresent
       || !result.brandIconLoaded
       || !result.headerSimplified
+      || !result.ownerToolsHiddenForCustomer
       || !result.marketingHomeHidden
       || !result.activationCompleted
       || !result.projectSaved

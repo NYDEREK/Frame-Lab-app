@@ -2,6 +2,8 @@
 
 Frame Lab dla macOS i Windows. Aplikacja działa lokalnie, bez konta, e-maila i internetu. Kod aktywacyjny odblokowuje zakupiony plan. Rok liczy się od aktywacji; lifetime nie wygasa.
 
+Osobny kod właścicielski aktywuje rolę **Developer**. Nie jest ona planem klienta: odblokowuje wszystkie funkcje i pokazuje lokalną zakładkę z sześcioma stałymi kodami planów, kopiowaniem kodu oraz pobieraniem prostego PDF-u aktywacyjnego.
+
 ## Projekty
 
 - **New Project** tworzy projekt, a **Import Project** wczytuje plik. Lista projektów przewija się w obrębie okna. Przycisk **← Projects** nad narzędziami kreatora wraca do biblioteki.

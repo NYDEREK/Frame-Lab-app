@@ -211,6 +211,11 @@ const staticLicenseCodes = [
   { id: "static-supporter", code: "8104-7702-1099", type: "supporter", label: "Supporter reusable code" },
   { id: "static-ultra-support", code: "9364-1558-2706", type: "ultra_support", label: "Ultra Support reusable code" }
 ];
+const desktopDeveloperAccess = {
+  code: "3175-6048-2541",
+  type: "developer",
+  label: "Developer"
+};
 
 const maxDesktopProjects = 500;
 const maxDesktopProjectBytes = 2_500_000;
@@ -240,6 +245,21 @@ function desktopCodeHash(code) {
 
 function sanitizeDesktopLicense(license) {
   if (!license || typeof license !== "object") return null;
+  const isDeveloper = license.type === desktopDeveloperAccess.type
+    && String(license.codeHash || "") === desktopCodeHash(desktopDeveloperAccess.code);
+  if (isDeveloper) {
+    const activatedAt = new Date(license.activatedAt || Date.now());
+    return {
+      type: desktopDeveloperAccess.type,
+      label: desktopDeveloperAccess.label,
+      plan: "studio",
+      role: "developer",
+      status: "lifetime",
+      codeHash: desktopCodeHash(desktopDeveloperAccess.code),
+      activatedAt: Number.isNaN(activatedAt.getTime()) ? new Date().toISOString() : activatedAt.toISOString(),
+      expiresAt: null
+    };
+  }
   const details = licenseCodeTypes[license.type];
   if (!details || details.plan === "free") return null;
   const activatedAt = new Date(license.activatedAt || Date.now());
@@ -250,6 +270,7 @@ function sanitizeDesktopLicense(license) {
     type: license.type,
     label: details.label,
     plan: details.plan,
+    role: "customer",
     status: lifetime ? "lifetime" : expired ? "expired" : "active",
     codeHash: String(license.codeHash || "").slice(0, 128),
     activatedAt: Number.isNaN(activatedAt.getTime()) ? new Date().toISOString() : activatedAt.toISOString(),
@@ -302,7 +323,7 @@ function sanitizeDesktopState(desktop) {
   const activationHistory = (Array.isArray(source.activationHistory) ? source.activationHistory : [])
     .map((entry) => ({
       codeHash: String(entry?.codeHash || "").slice(0, 128),
-      type: licenseCodeTypes[entry?.type] ? entry.type : "",
+      type: entry?.type === desktopDeveloperAccess.type ? desktopDeveloperAccess.type : licenseCodeTypes[entry?.type] ? entry.type : "",
       activatedAt: String(entry?.activatedAt || "").slice(0, 64)
     }))
     .filter((entry) => entry.codeHash && entry.type && !seenHistory.has(entry.codeHash) && seenHistory.add(entry.codeHash))
@@ -320,6 +341,10 @@ function sanitizeDesktopState(desktop) {
 function desktopLicenseHasAccess(license) {
   const sanitized = sanitizeDesktopLicense(license);
   return Boolean(sanitized && sanitized.status !== "expired" && planRank[sanitized.plan] > planRank.free);
+}
+
+function desktopLicenseIsDeveloper(license) {
+  return sanitizeDesktopLicense(license)?.role === "developer";
 }
 
 function publicDesktopProject(project, options = {}) {
@@ -1344,9 +1369,12 @@ async function handleApi(req, res, url) {
     db = readDb();
     const code = normalizeLicenseCode(body.code);
     if (code.length !== 12) return sendJson(res, 400, { error: "Enter a 12 digit activation code." });
-    const staticLicense = staticLicenseCodes.find((item) => normalizeLicenseCode(item.code) === code);
+    const developerActivation = normalizeLicenseCode(desktopDeveloperAccess.code) === code;
+    const staticLicense = developerActivation ? desktopDeveloperAccess : staticLicenseCodes.find((item) => normalizeLicenseCode(item.code) === code);
     if (!staticLicense) return sendJson(res, 404, { error: "This activation code is not valid." });
-    const details = licenseCodeTypes[staticLicense.type];
+    const details = developerActivation
+      ? { label: desktopDeveloperAccess.label, plan: "studio", duration: "lifetime" }
+      : licenseCodeTypes[staticLicense.type];
     if (!details || details.plan === "free") {
       return sendJson(res, 403, { error: "This support code does not include Creator access." });
     }
@@ -1366,6 +1394,7 @@ async function handleApi(req, res, url) {
         : null;
     db.desktop.license = sanitizeDesktopLicense({
       type: staticLicense.type,
+      role: developerActivation ? "developer" : "customer",
       codeHash,
       activatedAt: activatedAt.toISOString(),
       expiresAt: expiresAt || null
@@ -1378,8 +1407,17 @@ async function handleApi(req, res, url) {
     writeDb(db);
     return sendJson(res, 200, {
       license: publicDesktopLicense(db.desktop.license),
-      message: `${details.label} activated on this computer.`
+      message: developerActivation
+        ? "Developer access activated on this computer."
+        : `${details.label} activated on this computer.`
     });
+  }
+
+  if (req.method === "GET" && pathname === "/api/desktop/developer/codes") {
+    if (!desktopLicenseIsDeveloper(db.desktop.license)) {
+      return sendJson(res, 403, { error: "Developer access is required." });
+    }
+    return sendJson(res, 200, { codes: staticLicenseCodes.map(publicStaticLicenseCode) });
   }
 
   if (pathname === "/api/desktop/backups" && req.method === "GET") {
