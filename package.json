@@ -1,6 +1,6 @@
 {
   "name": "frame-lab-desktop",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Offline Frame Lab eyewear design studio for macOS and Windows",
   "author": "NYDEREK",
   "license": "MIT",
@@ -11,10 +11,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "test": "pnpm run test:server && pnpm run test:storage && pnpm run test:desktop && pnpm run test:projects",
+    "test": "pnpm run test:server && pnpm run test:storage && pnpm run test:packaging && pnpm run test:desktop && pnpm run test:projects",
     "test:server": "node scripts/smoke-server.mjs",
     "test:desktop": "electron . --smoke-test",
     "test:storage": "node scripts/test-local-data.mjs",
+    "test:packaging": "node scripts/test-packaging-layout.mjs",
     "test:projects": "electron scripts/test-project-workflow.cjs",
     "release:mac": "node scripts/build-signed.mjs mac",
     "release:win": "node scripts/build-signed.mjs win",
@@ -41,10 +42,18 @@
     "files": [
       "electron/**/*",
       "build/icon.png",
-      "web/**/*",
       "seed/**/*",
       "package.json",
       "LICENSE"
+    ],
+    "extraResources": [
+      {
+        "from": "web",
+        "to": "web",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.graphics-design",
