@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, Menu, dialog, session } from "electron";
+import { resolveWebServerPath } from "./resource-paths.mjs";
 import { confirmWindowLeave } from "./window-guard.mjs";
 
 app.setName("Frame Lab");
@@ -38,7 +39,15 @@ async function startLocalServer() {
   process.env.FRAME_LAB_DATA_DIR = ensureDesktopData();
   process.env.FRAME_LAB_DESKTOP = "1";
 
-  const serverModuleUrl = pathToFileURL(join(app.getAppPath(), "web", "server.js")).href;
+  const serverPath = resolveWebServerPath({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath()
+  });
+  if (!existsSync(serverPath)) {
+    throw new Error(`The local Frame Lab server is missing: ${serverPath}`);
+  }
+  const serverModuleUrl = pathToFileURL(serverPath).href;
   const { startFrameLabServer } = await import(serverModuleUrl);
   const started = await startFrameLabServer({ listenPort: 0, listenHost: "127.0.0.1" });
 
