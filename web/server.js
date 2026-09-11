@@ -1,10 +1,11 @@
 import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, isAbsolute, join, normalize, resolve } from "node:path";
+import { extname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { constants as zlibConstants, createBrotliCompress, createGzip } from "node:zlib";
 import { createLocalDatabase } from "./local-database.js";
+import { staticRequestRelativePath } from "./static-path.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const railwayDataPath = "/data";
@@ -1887,9 +1888,14 @@ async function handleApi(req, res, url) {
 }
 
 function serveStatic(req, res, pathname) {
-  const safePath = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  const filePath = join(root, safePath === "/" ? "index.html" : safePath);
-  if (!filePath.startsWith(root) || !existsSync(filePath)) {
+  const filePath = join(root, staticRequestRelativePath(pathname));
+  let isFile = false;
+  try {
+    isFile = filePath.startsWith(root) && statSync(filePath).isFile();
+  } catch {
+    isFile = false;
+  }
+  if (!isFile) {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
     return;
@@ -1905,6 +1911,10 @@ function serveStatic(req, res, pathname) {
     ...headers
   });
   const stream = createReadStream(filePath);
+  stream.on("error", (error) => {
+    console.error(`Frame Lab could not read static file ${filePath}: ${error.message}`);
+    res.destroy(error);
+  });
   if (compression) {
     stream.pipe(compression.stream).pipe(res);
     return;
