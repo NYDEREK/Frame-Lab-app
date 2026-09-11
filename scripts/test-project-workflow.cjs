@@ -65,6 +65,9 @@ async function checkCreatorLayout() {
         const bounds = box('#designStageTools');
         const controls = [...toolbar.querySelectorAll('button, label, input')].filter(element => element.getClientRects().length);
         const canvas = document.querySelector('${mode === 'assembly' ? '#designScene' : '#designSketchCanvas'}');
+        if (${JSON.stringify(mode)} !== 'assembly') {
+          await waitFor(() => Math.abs(canvas.width - canvas.getBoundingClientRect().width * Math.min(devicePixelRatio, 2)) <= 2);
+        }
         return {
           switch: box('.design-view-switch'), toolbar: bounds,
           appHeader: box('#desktopHeader'), back: box('#desktopBackToProjects'),
@@ -78,7 +81,7 @@ async function checkCreatorLayout() {
           overflow: toolbar.scrollWidth - toolbar.clientWidth,
           sidebarOverflow: document.querySelector('.design-sidebar').scrollWidth - document.querySelector('.design-sidebar').clientWidth,
           controlsFit: controls.every(element => { const rect = element.getBoundingClientRect(); return rect.left >= bounds.left && rect.right <= bounds.right + 1 && rect.top >= bounds.top && rect.bottom <= bounds.bottom + 1; }),
-          canvasWidth: canvas.width, displayedCanvasWidth: canvas.getBoundingClientRect().width * devicePixelRatio
+          canvasWidth: canvas.width, displayedCanvasWidth: canvas.getBoundingClientRect().width * Math.min(devicePixelRatio, 2)
         };
       `);
       const context = `${width}×${height} at ${zoom * 100}% / ${mode}`;
@@ -91,7 +94,7 @@ async function checkCreatorLayout() {
       assert.ok(layout.overflow <= 1 && layout.controlsFit, `Toolbar controls are clipped: ${context}`);
       assert.ok(layout.sidebarOverflow <= 1, `Sidebar controls are clipped: ${context}`);
       assert.ok(layout.viewport.height > 150, `Drawing viewport is too short: ${context}`);
-      if (mode !== 'assembly') assert.ok(Math.abs(layout.canvasWidth - layout.displayedCanvasWidth) <= 2, `Sketch did not redraw after resizing: ${context}`);
+      if (mode !== 'assembly') assert.ok(Math.abs(layout.canvasWidth - layout.displayedCanvasWidth) <= 2, `Sketch did not redraw after resizing: ${context} (${layout.canvasWidth} vs ${layout.displayedCanvasWidth})`);
       if (process.env.FRAME_LAB_QA_DIRECTORY) {
         await evaluate(`await new Promise(resolve => setTimeout(resolve, 220));`);
         mkdirSync(process.env.FRAME_LAB_QA_DIRECTORY, { recursive: true });
@@ -325,7 +328,11 @@ app.whenReady().then(async () => {
   } finally {
     if (window) window.destroy();
     if (server) await new Promise(resolve => server.close(resolve));
-    rmSync(temporary, { recursive: true, force: true });
+    try {
+      rmSync(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (error) {
+      console.warn(`Could not remove temporary workflow data: ${error.message}`);
+    }
     app.exit(failed ? 1 : 0);
   }
 });
