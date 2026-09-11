@@ -21,10 +21,10 @@
     "release:mac": "node scripts/build-signed.mjs mac",
     "release:win": "node scripts/build-signed.mjs win",
     "pack": "electron-builder --dir",
-    "dist:mac": "electron-builder --mac dmg zip --universal",
-    "dist:mac:arm64": "electron-builder --mac dmg zip --arm64",
-    "dist:mac:x64": "electron-builder --mac dmg zip --x64",
-    "dist:win": "electron-builder --win nsis --x64"
+    "dist:mac": "electron-builder --mac dmg zip --universal --publish never",
+    "dist:mac:arm64": "electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:mac:x64": "electron-builder --mac dmg zip --x64 --publish never",
+    "dist:win": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "43.4.0",
