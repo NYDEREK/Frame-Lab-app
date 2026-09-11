@@ -28,11 +28,12 @@ try {
   const started = await startFrameLabServer({ listenPort: 0, listenHost: "127.0.0.1" });
   server = started.server;
 
-  const [pageResponse, settingsResponse, collectionsResponse, desktopStateResponse] = await Promise.all([
+  const [pageResponse, settingsResponse, collectionsResponse, desktopStateResponse, directoryResponse] = await Promise.all([
     fetch(`${started.origin}/`),
     fetch(`${started.origin}/api/public-settings`),
     fetch(`${started.origin}/api/collections`),
-    fetch(`${started.origin}/api/desktop/state`)
+    fetch(`${started.origin}/api/desktop/state`),
+    fetch(`${started.origin}/assets/`)
   ]);
 
   assert.equal(pageResponse.status, 200);
@@ -47,6 +48,10 @@ try {
   assert.equal(settingsResponse.status, 200);
   assert.equal(collectionsResponse.status, 200);
   assert.equal(desktopStateResponse.status, 200);
+  assert.equal(directoryResponse.status, 404, "Static directories must not be opened as files or crash the server.");
+
+  const pageAfterDirectoryResponse = await fetch(`${started.origin}/`);
+  assert.equal(pageAfterDirectoryResponse.status, 200, "The server must remain available after a directory request.");
 
   const settings = await settingsResponse.json();
   const collections = await collectionsResponse.json();
